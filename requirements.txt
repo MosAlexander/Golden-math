@@ -1,0 +1,35 @@
+# GoldenMatch Pro — Dependencies
+# pip install -r requirements.txt
+
+# ── Core matching engine ──
+splink>=4.0.0
+duckdb>=0.9.0
+
+# ── Data processing ──
+pandas>=2.0.0
+
+# ── API layer ──
+fastapi>=0.104.0
+uvicorn>=0.24.0
+
+# ── Database ──
+psycopg2-binary>=2.9.0
+sqlalchemy>=2.0.0
+
+# ── Dashboard MVP ──
+streamlit>=1.28.0
+plotly>=5.18.0
+
+# ── Telegram alerts ──
+python-telegram-bot>=20.0
+
+# ── LLM-judge (выбрать один) ──
+requests>=2.31.0
+# gigachat  # pip install gigachat — для GigaChat API
+# yandexcloud  # для YandexGPT API
+
+# ── Optional: NLP fallback для сценария C ──
+# natasha>=1.6.0
+
+# ── Dev / testing ──
+pytest>=7.4.0

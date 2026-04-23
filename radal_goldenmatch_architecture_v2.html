@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Radal GoldenMatch Architecture v2</title>
+<style>
+body { margin: 20px; background: #f8fafc; display: flex; justify-content: center; }
+</style>
+</head>
+<body>
+<svg width="100%" viewBox="0 0 680 980" style="max-width:700px;">
+<defs>
+<marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker>
+<style>
+text{font-family:-apple-system,BlinkMacSystemFont,sans-serif}
+.th{font-size:14px;font-weight:500;fill:#1e293b}
+.ts{font-size:12px;fill:#64748b}
+.arr{stroke:#9ca3af;stroke-width:1.5}
+.c-blue rect{fill:#E6F1FB;stroke:#185FA5;stroke-width:0.5}
+.c-blue .th{fill:#0C447C}.c-blue .ts{fill:#185FA5}
+.c-gray rect{fill:#F1EFE8;stroke:#5F5E5A;stroke-width:0.5}
+.c-gray .th{fill:#444441}.c-gray .ts{fill:#5F5E5A}
+.c-teal rect{fill:#E1F5EE;stroke:#0F6E56;stroke-width:0.5}
+.c-teal .th{fill:#085041}.c-teal .ts{fill:#0F6E56}
+.c-purple rect{fill:#EEEDFE;stroke:#534AB7;stroke-width:0.5}
+.c-purple .th{fill:#3C3489}.c-purple .ts{fill:#534AB7}
+.c-coral rect{fill:#FAECE7;stroke:#993C1D;stroke-width:0.5}
+.c-coral .th{fill:#712B13}.c-coral .ts{fill:#993C1D}
+.c-amber rect{fill:#FAEEDA;stroke:#854F0B;stroke-width:0.5}
+.c-amber .th{fill:#633806}.c-amber .ts{fill:#854F0B}
+.c-green rect{fill:#EAF3DE;stroke:#3B6D11;stroke-width:0.5}
+.c-green .th{fill:#27500A}.c-green .ts{fill:#3B6D11}
+</style>
+</defs>
+
+<text class="th" x="40" y="28">1. Data sources</text>
+
+<g class="c-blue">
+<rect x="40" y="42" width="185" height="56" rx="8"/>
+<text class="th" x="132" y="60" text-anchor="middle" dominant-baseline="central">TenderGuru</text>
+<text class="ts" x="132" y="78" text-anchor="middle" dominant-baseline="central">OKPD2, Excel, alerts</text>
+</g>
+
+<g class="c-blue">
+<rect x="247" y="42" width="185" height="56" rx="8"/>
+<text class="th" x="340" y="60" text-anchor="middle" dominant-baseline="central">B2B-Center</text>
+<text class="ts" x="340" y="78" text-anchor="middle" dominant-baseline="central">API / structured feed</text>
+</g>
+
+<g class="c-gray">
+<rect x="455" y="42" width="185" height="56" rx="8"/>
+<text class="th" x="547" y="60" text-anchor="middle" dominant-baseline="central">Radal catalog</text>
+<text class="ts" x="547" y="78" text-anchor="middle" dominant-baseline="central">CSV from 1C, ~15K SKU</text>
+</g>
+
+<line x1="132" y1="98" x2="132" y2="140" class="arr" marker-end="url(#arrow)"/>
+<line x1="340" y1="98" x2="340" y2="140" class="arr" marker-end="url(#arrow)"/>
+<line x1="547" y1="98" x2="547" y2="140" class="arr" marker-end="url(#arrow)"/>
+
+<text class="th" x="40" y="138">2. Part number extraction + normalization</text>
+
+<g class="c-teal">
+<rect x="40" y="150" width="600" height="90" rx="12"/>
+</g>
+<g class="c-teal">
+<rect x="60" y="164" width="170" height="44" rx="8"/>
+<text class="th" x="145" y="186" text-anchor="middle" dominant-baseline="central">PN extractor</text>
+</g>
+<g class="c-teal">
+<rect x="255" y="164" width="170" height="44" rx="8"/>
+<text class="th" x="340" y="186" text-anchor="middle" dominant-baseline="central">MFR detector</text>
+</g>
+<g class="c-teal">
+<rect x="450" y="164" width="170" height="44" rx="8"/>
+<text class="th" x="535" y="186" text-anchor="middle" dominant-baseline="central">Param extractor</text>
+</g>
+<text class="ts" x="145" y="226" text-anchor="middle">Regex + stopwords</text>
+<text class="ts" x="340" y="226" text-anchor="middle">200+ brand aliases</text>
+<text class="ts" x="535" y="226" text-anchor="middle">V, A, W, MHz, package</text>
+
+<line x1="340" y1="240" x2="340" y2="276" class="arr" marker-end="url(#arrow)"/>
+
+<text class="th" x="40" y="274">3. Scenario router</text>
+
+<g class="c-purple">
+<rect x="40" y="286" width="600" height="100" rx="12"/>
+</g>
+<g class="c-purple">
+<rect x="60" y="304" width="170" height="56" rx="8"/>
+<text class="th" x="145" y="322" text-anchor="middle" dominant-baseline="central">A: PN exact match</text>
+<text class="ts" x="145" y="340" text-anchor="middle" dominant-baseline="central">~70% tenders</text>
+</g>
+<g class="c-purple">
+<rect x="255" y="304" width="170" height="56" rx="8"/>
+<text class="th" x="340" y="322" text-anchor="middle" dominant-baseline="central">B: Parametric</text>
+<text class="ts" x="340" y="340" text-anchor="middle" dominant-baseline="central">~20% tenders</text>
+</g>
+<g class="c-purple">
+<rect x="450" y="304" width="170" height="56" rx="8"/>
+<text class="th" x="535" y="322" text-anchor="middle" dominant-baseline="central">C: Category only</text>
+<text class="ts" x="535" y="340" text-anchor="middle" dominant-baseline="central">~10% tenders</text>
+</g>
+
+<line x1="145" y1="386" x2="145" y2="420" class="arr" marker-end="url(#arrow)"/>
+<line x1="340" y1="386" x2="340" y2="420" class="arr" marker-end="url(#arrow)"/>
+<line x1="535" y1="386" x2="535" y2="420" class="arr" marker-end="url(#arrow)"/>
+
+<text class="th" x="40" y="416">4. Matching engine</text>
+
+<g class="c-coral">
+<rect x="40" y="428" width="600" height="100" rx="16"/>
+<text class="th" x="340" y="450" text-anchor="middle" dominant-baseline="central">Splink probabilistic matching</text>
+</g>
+<g class="c-coral">
+<rect x="60" y="466" width="130" height="44" rx="8"/>
+<text class="ts" x="125" y="488" text-anchor="middle" dominant-baseline="central">PN: weight 60%</text>
+</g>
+<g class="c-coral">
+<rect x="210" y="466" width="130" height="44" rx="8"/>
+<text class="ts" x="275" y="488" text-anchor="middle" dominant-baseline="central">MFR: weight 20%</text>
+</g>
+<g class="c-coral">
+<rect x="360" y="466" width="130" height="44" rx="8"/>
+<text class="ts" x="425" y="488" text-anchor="middle" dominant-baseline="central">Params: 15%</text>
+</g>
+<g class="c-coral">
+<rect x="510" y="466" width="110" height="44" rx="8"/>
+<text class="ts" x="565" y="488" text-anchor="middle" dominant-baseline="central">Desc: 5%</text>
+</g>
+
+<line x1="340" y1="528" x2="340" y2="564" class="arr" marker-end="url(#arrow)"/>
+
+<text class="th" x="40" y="560">5. LLM-judge (borderline 0.75-0.92 only)</text>
+
+<g class="c-amber">
+<rect x="140" y="572" width="400" height="56" rx="8"/>
+<text class="th" x="340" y="590" text-anchor="middle" dominant-baseline="central">GigaChat / YandexGPT</text>
+<text class="ts" x="340" y="608" text-anchor="middle" dominant-baseline="central">Electronics expert, ~10-15% of pairs</text>
+</g>
+
+<line x1="340" y1="628" x2="340" y2="662" class="arr" marker-end="url(#arrow)"/>
+
+<text class="th" x="40" y="658">6. Relevance ranking</text>
+
+<g class="c-teal">
+<rect x="40" y="670" width="600" height="56" rx="12"/>
+<text class="th" x="340" y="688" text-anchor="middle" dominant-baseline="central">Score = match 40% + stock 25% + margin 20% + deadline 15%</text>
+<text class="ts" x="340" y="708" text-anchor="middle" dominant-baseline="central">Win/loss history feeds back into weights</text>
+</g>
+
+<line x1="340" y1="726" x2="340" y2="756" class="arr" marker-end="url(#arrow)"/>
+
+<text class="th" x="40" y="754">7. Dashboard + alerts</text>
+
+<g class="c-green">
+<rect x="40" y="766" width="600" height="110" rx="16"/>
+<text class="th" x="340" y="788" text-anchor="middle" dominant-baseline="central">Streamlit MVP dashboard</text>
+</g>
+<g class="c-gray">
+<rect x="60" y="802" width="130" height="44" rx="8"/>
+<text class="ts" x="125" y="824" text-anchor="middle" dominant-baseline="central">Tender feed</text>
+</g>
+<g class="c-gray">
+<rect x="206" y="802" width="130" height="44" rx="8"/>
+<text class="ts" x="271" y="824" text-anchor="middle" dominant-baseline="central">Match card</text>
+</g>
+<g class="c-gray">
+<rect x="352" y="802" width="130" height="44" rx="8"/>
+<text class="ts" x="417" y="824" text-anchor="middle" dominant-baseline="central">Win/loss analytics</text>
+</g>
+<g class="c-gray">
+<rect x="498" y="802" width="130" height="44" rx="8"/>
+<text class="ts" x="563" y="824" text-anchor="middle" dominant-baseline="central">Telegram alerts</text>
+</g>
+
+<line x1="340" y1="876" x2="340" y2="906" class="arr" marker-end="url(#arrow)"/>
+
+<g class="c-blue">
+<rect x="100" y="912" width="480" height="44" rx="8"/>
+<text class="th" x="340" y="934" text-anchor="middle" dominant-baseline="central">Alert: CM1000E3U-34NF Mitsubishi — match 98% — deadline 5 days</text>
+</g>
+
+</svg>
+</body>
+</html>
