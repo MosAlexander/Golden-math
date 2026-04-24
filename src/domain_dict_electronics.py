@@ -53,7 +53,7 @@ CATEGORY_KEYWORDS: dict[str, list[str]] = {
         "cyclone", "stratix", "max10",
     ],
     "microcontroller": [
-        "микроконтроллер", "мк", "mcu", "stm32", "pic",
+        "микроконтроллер", "mcu", "stm32", "pic",
         "avr", "atmega", "esp32", "arm cortex",
     ],
     "memory": [
@@ -355,6 +355,16 @@ def find_manufacturer(text: str) -> str:
 # ══════════════════════════════════════════════
 # 7. ОПРЕДЕЛЕНИЕ КАТЕГОРИИ
 # ══════════════════════════════════════════════
+def _keyword_matches(keyword: str, text_lower: str) -> bool:
+    """
+    Проверяет наличие ключевого слова в тексте с учётом границ слов.
+    Работает как для латиницы, так и для кириллицы.
+    """
+    escaped = re.escape(keyword)
+    pattern = r'(?<![a-zа-яё0-9])' + escaped + r'(?![a-zа-яё0-9])'
+    return bool(re.search(pattern, text_lower))
+
+
 def detect_category(text: str) -> str:
     """
     Определяет категорию электронного компонента по ключевым словам.
@@ -365,7 +375,7 @@ def detect_category(text: str) -> str:
     best_score = 0
 
     for cat, keywords in CATEGORY_KEYWORDS.items():
-        score = sum(1 for kw in keywords if kw in text_lower)
+        score = sum(1 for kw in keywords if _keyword_matches(kw, text_lower))
         if score > best_score:
             best_score = score
             best_cat = cat
