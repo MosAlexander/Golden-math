@@ -101,6 +101,9 @@ def _extract_part_numbers(text: str) -> list[str]:
         "FUJI", "POWERFLEX", "ALLEN-BRADLEY", "ROCKWELL", "HITACHI",
         "KINGBRIGHT", "QORVO", "CYPRESS", "MAXIM", "ATMEL", "KEMET",
         "IGBT", "MOSFET", "FPGA", "CPLD", "PLIS",
+        # T-A07 fix: industrial protocols, not part numbers
+        "ETHERNET", "ETHERNETIP", "ETHERNET-IP",
+        "PROFINET", "PROFIBUS", "MODBUS", "DEVICENET", "CANOPEN",
     }
 
     pns: list[str] = []
@@ -247,8 +250,18 @@ def normalize_tender_item(
     # Manufacturer
     mfr = find_manufacturer(clean)
 
-    # Category
-    cat = category or detect_category(clean)
+    # Disentangle okpd2 (государственный классификатор) от taxonomy
+    # (наша 17-категорийная схема). В одном поле они быть не могут —
+    # каталог хранит только taxonomy, тендеры приходят с okpd2.
+    # См. DECISIONS.md.
+    okpd2_value = ""
+    if category and re.match(r'^\d+\.\d+', category):
+        # category выглядит как okpd2-код (26.11.12, 27.11 и т.п.)
+        okpd2_value = category
+        cat = detect_category(clean)
+    else:
+        # category — это уже наша таксономия или пустота
+        cat = category or detect_category(clean)
 
     # Params
     params = extract_electrical_params(clean)
@@ -270,7 +283,7 @@ def normalize_tender_item(
         unit=unit,
         region=region,
         price_max=price_max,
-        extra=extra,
+        extra={**extra, "okpd2": okpd2_value} if okpd2_value else extra,
     )
     rec.match_scenario = _determine_scenario(rec)
     return rec

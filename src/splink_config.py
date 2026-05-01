@@ -443,6 +443,15 @@ def _calculate_score(tender: dict, catalog: dict) -> float:
     if t_mfr and c_mfr and t_mfr == c_mfr:
         score += 0.20
 
+    # PN+MFR sufficiency bonus (RULES.md §1: точный PN+MFR → auto)
+    # Архитектурный контракт: при точном совпадении part number и
+    # manufacturer матч обязан попадать в auto-decision независимо
+    # от наличия параметров в тендере (см. DECISIONS.md).
+    # Без этого Сценарий A с короткими тендерными текстами теряет
+    # auto-классификацию из-за отсутствия voltage/current в тексте.
+    if t_pn and c_pn and t_pn == c_pn and t_mfr and c_mfr and t_mfr == c_mfr:
+        score += 0.05
+
     # Category (8%)
     if tender.get("category") and catalog.get("category"):
         if tender["category"] == catalog["category"]:
