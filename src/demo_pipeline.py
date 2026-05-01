@@ -15,7 +15,10 @@ demo_pipeline.py — Единая точка входа: полный пайпл
 
 from __future__ import annotations
 
+import json
+import logging
 from datetime import datetime
+from pathlib import Path
 
 from .seed_catalog_radal import get_seed_catalog
 from .test_tenders import get_test_tenders, TEST_TENDERS
@@ -333,8 +336,56 @@ def _print_report(result: dict) -> None:
 
 
 def main():
+    import sys
+    # Принудительно UTF-8 для stdout/stderr — иначе на Windows
+    # при subprocess/pipe/редиректе падаем с UnicodeEncodeError на
+    # символах вроде ✓ ✗ ▶ ═ → ₽ внутри _print_report().
+    # reconfigure() появилась в Python 3.7, у нас 3.11+.
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, OSError):
+            pass
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+        stream=sys.stderr,
+    )
     result = run_pipeline()
     _print_report(result)
+
+    correct = result["validation"]["correct"]
+    total = result["validation"]["total"]
+    accuracy_str = f"{correct}/{total}"
+
+    cache_data = {
+        "timestamp": result["timestamp"],
+        "accuracy": accuracy_str,
+        "results": result["results"],
+        "catalog": result["catalog"],
+        "tenders": [
+            {
+                **t,
+                "best_match_id": result["best_matches"].get(t["id"], [None, 0.0])[0],
+                "best_match_score": result["best_matches"].get(t["id"], [None, 0.0])[1],
+            }
+            for t in result["tenders"]
+        ],
+    }
+
+    Path("data").mkdir(exist_ok=True)
+    Path("data/last_run.json").write_text(
+        json.dumps(cache_data, ensure_ascii=False, indent=2, default=str),
+        encoding="utf-8",
+    )
+
+    with open("docs/pipeline_runs.log", "a", encoding="utf-8") as f:
+        f.write(
+            f"{result['timestamp']} | "
+            f"accuracy={accuracy_str} | "
+            f"matches={len(result['results'])} | "
+            f"runtime=fallback\n"
+        )
 
 
 def _format_nmc(val):

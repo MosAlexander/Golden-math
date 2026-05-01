@@ -17,6 +17,9 @@ Splink использует модель Fellegi-Sunter: для каждой п�
 
 from __future__ import annotations
 
+import logging
+
+logger = logging.getLogger(__name__)
 
 # ══════════════════════════════════════════════
 # 1. ПОДГОТОВКА ДАННЫХ ДЛЯ SPLINK
@@ -334,7 +337,7 @@ def run_matching_pipeline(catalog_data: list[dict], tender_data: list[dict]):
         import splink
         return _run_with_splink(catalog_data, tender_data)
     except ImportError:
-        print("⚠ Splink не установлен. Запускаю fallback-scoring...")
+        logger.warning("Splink not installed, using fallback scoring")
         return _run_fallback_scoring(catalog_data, tender_data)
 
 
