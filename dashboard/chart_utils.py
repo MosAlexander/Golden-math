@@ -1,0 +1,43 @@
+"""chart_utils.py — единый источник цветов и Altair-настроек.
+Никогда не хардкодить hex-цвета в page-файлах — только импортировать отсюда.
+"""
+from __future__ import annotations
+import altair as alt
+
+# ── UI ──────────────────────────────────────────
+PRIMARY_COLOR    = '#FF9800'
+
+# ── Match decisions ─────────────────────────────
+COLOR_AUTO       = '#16a34a'
+COLOR_BORDERLINE = '#FACC15'
+COLOR_REJECT     = '#EF4444'
+COLOR_NEUTRAL    = '#6B7280'
+
+# ── Scenarios ───────────────────────────────────
+COLOR_SCENARIO_A = '#3B82F6'
+COLOR_SCENARIO_B = '#8B5CF6'
+COLOR_SCENARIO_C = '#6B7280'
+
+# ── Semantic aliases ────────────────────────────
+COLOR_GOOD    = COLOR_AUTO
+COLOR_WARNING = COLOR_BORDERLINE
+COLOR_DANGER  = COLOR_REJECT
+COLOR_MUTED   = COLOR_NEUTRAL
+
+# ── Palettes ────────────────────────────────────
+RAINBOW_PALETTE = ['#8B5CF6', '#3B82F6', '#10B981', '#FACC15', '#F59E0B', '#EF4444']
+COMPARE_PALETTE = ['#8B5CF6', '#F59E0B']
+
+# ── Sort orders ─────────────────────────────────
+DECISION_ORDER = ["auto", "borderline", "reject"]
+SCENARIO_ORDER = ["A", "B", "C"]
+
+# ── Altair scales (altair 6.x) ──────────────────
+DECISION_SCALE = alt.Scale(
+    domain=DECISION_ORDER,
+    range=[COLOR_AUTO, COLOR_BORDERLINE, COLOR_REJECT],
+)
+SCENARIO_SCALE = alt.Scale(
+    domain=SCENARIO_ORDER,
+    range=[COLOR_SCENARIO_A, COLOR_SCENARIO_B, COLOR_SCENARIO_C],
+)
