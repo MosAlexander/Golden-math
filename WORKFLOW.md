@@ -24,8 +24,8 @@ Gate 4   [⏳ IN PROGRESS]  Pipeline cache + dashboard foundation
       4.0 ✅ PASSED — pipeline cache + UTF-8 stdout/stderr fix
       4.1 ✅ PASSED — dashboard/chart_utils.py
       4.2 ✅ PASSED — dashboard/data_utils.py
-      4.3 ⏳ NEXT    — dashboard/streamlit_app.py
-      4.4 ⬜ TODO    — dashboard/pages/ заглушки (9 файлов)
+      4.3 ✅ PASSED — dashboard/streamlit_app.py
+      4.4 ⏳ NEXT    — dashboard/pages/ заглушки (9 файлов)
 Gate 5   [⬜ TODO]   Dashboard pages — Мониторинг (3 стр)
 Gate 6   [⬜ TODO]   Dashboard pages — Данные + Аналитика (3 стр)
 Gate 7   [⬜ TODO]   Dashboard pages — Система (3 стр)
@@ -33,7 +33,7 @@ Gate 8   [⬜ TODO]   Integration: LLM-judge + Telegram alerts
 Gate 9   [⬜ TODO]   Splink switchover + threshold recalibration
 ```
 
-**Следующее действие:** Gate 4.3 — `dashboard/streamlit_app.py` (точка входа Streamlit, навигация, sidebar статус).
+**Следующее действие:** Gate 4.4 — `dashboard/pages/` заглушки (9 файлов).
 
 ---
 
