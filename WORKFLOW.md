@@ -20,20 +20,20 @@ Gate 1   [✅ PASSED]  Core pipeline (src/)
 Gate 2   [✅ PASSED]  Test suite — 284 passed, 1 xfailed
 Gate 3   [✅ PASSED]  Matching engine + relevance ranking
 Gate 3.5 [✅ PASSED]  E2E product invariants + T-A07 fix + okpd2 disentanglement
-Gate 4   [⏳ IN PROGRESS]  Pipeline cache + dashboard foundation
+Gate 4   [✅ PASSED]      Pipeline cache + dashboard foundation
       4.0 ✅ PASSED — pipeline cache + UTF-8 stdout/stderr fix
       4.1 ✅ PASSED — dashboard/chart_utils.py
       4.2 ✅ PASSED — dashboard/data_utils.py
       4.3 ✅ PASSED — dashboard/streamlit_app.py
-      4.4 ⏳ NEXT    — dashboard/pages/ заглушки (9 файлов)
-Gate 5   [⬜ TODO]   Dashboard pages — Мониторинг (3 стр)
+      4.4 ✅ PASSED — dashboard/pages/ заглушки (9 файлов)
+Gate 5   [⏳ NEXT]   Dashboard pages — Мониторинг (3 стр)
 Gate 6   [⬜ TODO]   Dashboard pages — Данные + Аналитика (3 стр)
 Gate 7   [⬜ TODO]   Dashboard pages — Система (3 стр)
 Gate 8   [⬜ TODO]   Integration: LLM-judge + Telegram alerts
 Gate 9   [⬜ TODO]   Splink switchover + threshold recalibration
 ```
 
-**Следующее действие:** Gate 4.4 — `dashboard/pages/` заглушки (9 файлов).
+**Следующее действие:** Gate 5 — наполнение страниц Мониторинга (overview / tender_feed / matching).
 
 ---
 
