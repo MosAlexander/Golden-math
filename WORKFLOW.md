@@ -22,8 +22,8 @@ Gate 3   [✅ PASSED]  Matching engine + relevance ranking
 Gate 3.5 [✅ PASSED]  E2E product invariants + T-A07 fix + okpd2 disentanglement
 Gate 4   [⏳ IN PROGRESS]  Pipeline cache + dashboard foundation
       4.0 ✅ PASSED — pipeline cache + UTF-8 stdout/stderr fix
-      4.1 ⏳ NEXT    — dashboard/chart_utils.py
-      4.2 ⬜ TODO    — dashboard/data_utils.py
+      4.1 ✅ PASSED — dashboard/chart_utils.py
+      4.2 ⏳ NEXT    — dashboard/data_utils.py
       4.3 ⬜ TODO    — dashboard/streamlit_app.py
       4.4 ⬜ TODO    — dashboard/pages/ заглушки (9 файлов)
 Gate 5   [⬜ TODO]   Dashboard pages — Мониторинг (3 стр)
@@ -33,7 +33,7 @@ Gate 8   [⬜ TODO]   Integration: LLM-judge + Telegram alerts
 Gate 9   [⬜ TODO]   Splink switchover + threshold recalibration
 ```
 
-**Следующее действие:** Gate 4.1 — `dashboard/chart_utils.py` (палитры + Altair scales).
+**Следующее действие:** Gate 4.2 — `dashboard/data_utils.py` (загрузка данных + кэш Streamlit).
 
 ---
 
