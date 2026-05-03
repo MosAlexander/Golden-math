@@ -26,14 +26,17 @@ Gate 4   [✅ PASSED]      Pipeline cache + dashboard foundation
       4.2 ✅ PASSED — dashboard/data_utils.py
       4.3 ✅ PASSED — dashboard/streamlit_app.py
       4.4 ✅ PASSED — dashboard/pages/ заглушки (9 файлов)
-Gate 5   [⏳ NEXT]   Dashboard pages — Мониторинг (3 стр)
+Gate 5   [⏳ IN PROGRESS]  Dashboard pages — Мониторинг (3 стр)
+      5.1 ✅ PASSED — pages/overview.py (KPI + 3 chart блока)
+      5.2 ⏳ NEXT    — pages/tender_feed.py
+      5.3 ⬜ TODO    — pages/matching.py
 Gate 6   [⬜ TODO]   Dashboard pages — Данные + Аналитика (3 стр)
 Gate 7   [⬜ TODO]   Dashboard pages — Система (3 стр)
 Gate 8   [⬜ TODO]   Integration: LLM-judge + Telegram alerts
 Gate 9   [⬜ TODO]   Splink switchover + threshold recalibration
 ```
 
-**Следующее действие:** Gate 5 — наполнение страниц Мониторинга (overview / tender_feed / matching).
+**Следующее действие:** Gate 5.2 — `dashboard/pages/tender_feed.py` (лента тендеров с фильтрами и сортировкой по relevance).
 
 ---
 
@@ -48,6 +51,37 @@ Gate 9   [⬜ TODO]   Splink switchover + threshold recalibration
 6. **Не начинай Gate N+1** пока не пройден Gate N.
 7. **Тесты запускать через** `python -m pytest tests/ -v` — не `pytest tests/`.
    Без `-m` импорты `from src.` падают (нет `conftest.py`, это норма).
+
+---
+
+## Deferred items (memos for future gates)
+
+Решения, принятые в текущих гейтах, но отложенные до конкретного будущего гейта. 
+Перед стартом каждого гейта — пройтись по своему списку.
+
+### К Gate 8 (TenderGuru integration)
+
+1. **Страница Обзор → KPI**: добавить дельты для метрик «Активных тендеров», 
+   «Срочные», «Сумма НМЦ» — после подключения TenderGuru появится исторический 
+   контекст для сравнения «вчера/неделя».
+
+2. **Страница Обзор → график 3**: заменить «Тендеры по регионам» на «Площадки — 
+   источники» (или сделать двухуровневый «Регион + Площадка»). До Gate 8 поле 
+   платформы в данных отсутствует.
+
+3. **Страница Обзор → фильтры**: добавить единый временной фильтр для всей 
+   страницы (1 день / 5 дней / 14 дней / 1 месяц / 3 месяца / 6 месяцев / год) 
+   вместо/дополнительно к локальным фильтрам графиков.
+
+4. **Страница Обзор → подзаголовок**: «Сводка по последнему прогону пайплайна» 
+   → «Ежедневная сводка по тендерам и матчингу».
+
+### К Gate 9 (Splink switchover + recalibration)
+
+5. **Страница Обзор → блок Аналитика**: добавить text footer под каждым 
+   графиком — автогенерируемая подпись с интерпретацией данных (главный лидер, 
+   % от общего, сравнение с прошлым периодом). Делать только когда есть 
+   достаточно данных и историческая база для сравнений.
 
 ---
 
