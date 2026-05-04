@@ -28,15 +28,15 @@ Gate 4   [✅ PASSED]      Pipeline cache + dashboard foundation
       4.4 ✅ PASSED — dashboard/pages/ заглушки (9 файлов)
 Gate 5   [⏳ IN PROGRESS]  Dashboard pages — Мониторинг (3 стр)
       5.1 ✅ PASSED — pages/overview.py (KPI + 3 chart блока)
-      5.2 ⏳ NEXT    — pages/tender_feed.py
-      5.3 ⬜ TODO    — pages/matching.py
+      5.2 ✅ PASSED — pages/tender_feed.py (фильтры + таблица 9 колонок)
+      5.3 ⏳ NEXT    — pages/matching.py
 Gate 6   [⬜ TODO]   Dashboard pages — Данные + Аналитика (3 стр)
 Gate 7   [⬜ TODO]   Dashboard pages — Система (3 стр)
 Gate 8   [⬜ TODO]   Integration: LLM-judge + Telegram alerts
 Gate 9   [⬜ TODO]   Splink switchover + threshold recalibration
 ```
 
-**Следующее действие:** Gate 5.2 — `dashboard/pages/tender_feed.py` (лента тендеров с фильтрами и сортировкой по relevance).
+**Следующее действие:** Gate 5.3 — `dashboard/pages/matching.py` (детальный разбор выбранного тендера).
 
 ---
 
