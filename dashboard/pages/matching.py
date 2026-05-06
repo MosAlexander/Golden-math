@@ -8,11 +8,19 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+import logging
+
 from dashboard.chart_utils import (
     COLOR_AUTO,
     COLOR_BORDERLINE,
     COLOR_REJECT,
+    COLOR_RELEVANCE_MATCH,
+    COLOR_RELEVANCE_STOCK,
+    COLOR_RELEVANCE_MARGIN,
+    COLOR_RELEVANCE_DEADLINE,
 )
+
+logger = logging.getLogger(__name__)
 from dashboard.data_utils import (
     get_run_metadata,
     load_catalog,
@@ -422,6 +430,83 @@ def _render_zone_indicator(match: dict) -> None:
     cols[2].caption("auto")
 
 
+# ── Relevance decomposition ──────────────────────────────────────────────────
+
+@st.cache_data
+def _decompose_relevance(
+    match_probability: float,
+    in_stock: bool,
+    stock_qty: int,
+    price_max: float | None,
+    deadline_days: int | None,
+) -> dict[str, dict]:
+    """Декомпозиция итогового relevance на 4 компонента.
+
+    Логика ДОЛЖНА совпадать с calculate_relevance() из splink_config.py.
+    Если splink_config меняется — этот хелпер тоже обновлять.
+
+    Возвращает {component: {"value": float, "raw": float, "weight": float}}
+    где value = вклад после умножения на вес, raw = value / weight (0..1).
+    """
+    from src.splink_config import calculate_relevance
+
+    # Match quality (40%)
+    mq_value = match_probability * 0.40
+
+    # Stock availability (25%)
+    if in_stock and stock_qty > 0:
+        stock_score = min(stock_qty / 50, 1.0)
+        sa_value = stock_score * 0.25
+    else:
+        stock_score = 0.0
+        sa_value = 0.0
+
+    # Margin estimate (20%)
+    price = price_max or 0
+    if price > 100_000:
+        me_value = 0.20
+    elif price > 50_000:
+        me_value = 0.12
+    else:
+        me_value = 0.05
+
+    # Deadline urgency (15%)
+    days = deadline_days if deadline_days is not None else 30
+    if days <= 5:
+        du_value = 0.15
+    elif days <= 10:
+        du_value = 0.10
+    elif days <= 20:
+        du_value = 0.05
+    else:
+        du_value = 0.02
+
+    result = {
+        "match_quality": {"value": mq_value,  "raw": match_probability, "weight": 0.40},
+        "stock":         {"value": sa_value,   "raw": stock_score,       "weight": 0.25},
+        "margin":        {"value": me_value,   "raw": me_value / 0.20,   "weight": 0.20},
+        "deadline":      {"value": du_value,   "raw": du_value / 0.15,   "weight": 0.15},
+    }
+
+    # Sanity-check: сумма компонентов должна совпадать с calculate_relevance
+    match_dict = {
+        "match_probability": match_probability,
+        "in_stock": in_stock,
+        "stock_qty": stock_qty,
+        "price_max": price_max,
+        "deadline_days": deadline_days,
+    }
+    expected = calculate_relevance(match_dict)
+    actual = sum(c["value"] for c in result.values())
+    if abs(actual - expected) > 1e-9:
+        logger.warning(
+            "_decompose_relevance drift: computed=%.10f expected=%.10f",
+            actual, expected,
+        )
+
+    return result
+
+
 # ── Block 1: match card ───────────────────────────────────────────────────────
 
 def _render_match_card(tender_row: dict, catalog_row: dict, best_match: dict) -> None:
@@ -592,19 +677,119 @@ with st.container(border=True):
         st.caption("Зона уверенности")
         _render_zone_indicator(best_match)
 
-# ── Блок 4: LLM (раунд 3) ────────────────────────────────────────────────────
-with st.container(border=True):
-    st.info(
-        "Блок LLM-эксперта (только borderline) — следующие раунды",
-        icon=":material/auto_awesome:",
-    )
+# ── Блок 4: LLM-плейсхолдер (только borderline) ──────────────────────────────
+if best_match.get("decision") == "borderline":
+    with st.container(border=True):
+        st.markdown("#### :primary[:material/auto_awesome:] Мнение LLM-эксперта")
+        info_col, btn_col = st.columns([4, 1])
+        with info_col:
+            st.markdown(
+                "Этот матч находится в borderline-зоне (0.75–0.92) — "
+                "движок не уверен достаточно для авто-решения."
+            )
+            st.caption(
+                "В production-версии GigaChat / YandexGPT дают вердикт за ~2 секунды. "
+                "Активация запланирована в Gate 8."
+            )
+        with btn_col:
+            st.button(
+                "Запросить анализ",
+                disabled=True,
+                key="llm_request_disabled",
+                help="Активируется в Gate 8 — LLM-judge",
+            )
 
-# ── Блок 5: relevance breakdown (раунд 3) ────────────────────────────────────
+# ── Блок 5: relevance breakdown ───────────────────────────────────────────────
+relevance      = float(best_match.get("relevance", 0))
+in_stock_bm    = bool(best_match.get("in_stock", False))
+stock_qty_bm   = int(best_match.get("stock_qty", 0) or 0)
+price_max_bm   = best_match.get("price_max")
+deadline_bm    = best_match.get("deadline_days")
+deadline_int   = int(deadline_bm) if deadline_bm is not None else None
+
+comp = _decompose_relevance(
+    match_probability=float(best_match.get("match_probability", 0)),
+    in_stock=in_stock_bm,
+    stock_qty=stock_qty_bm,
+    price_max=float(price_max_bm) if price_max_bm is not None else None,
+    deadline_days=deadline_int,
+)
+
 with st.container(border=True):
-    st.info(
-        "Блок «Стоит ли брать в работу» (relevance breakdown) — следующие раунды",
-        icon=":material/leaderboard:",
+    header_left, header_right = st.columns([2, 1])
+    with header_left:
+        st.markdown("#### :primary[:material/leaderboard:] Стоит ли брать в работу")
+    with header_right:
+        st.markdown(f"### :primary[**{relevance:.2f}**]")
+        st.caption("Приоритет в ленте")
+
+    # Segmented bar
+    breakdown_df = pd.DataFrame([
+        {"component": "Match",    "value": comp["match_quality"]["value"], "order": 1, "color": COLOR_RELEVANCE_MATCH},
+        {"component": "Stock",    "value": comp["stock"]["value"],         "order": 2, "color": COLOR_RELEVANCE_STOCK},
+        {"component": "Margin",   "value": comp["margin"]["value"],        "order": 3, "color": COLOR_RELEVANCE_MARGIN},
+        {"component": "Deadline", "value": comp["deadline"]["value"],      "order": 4, "color": COLOR_RELEVANCE_DEADLINE},
+        {"component": "Остаток",  "value": max(0.0, 1.0 - relevance),     "order": 5, "color": "rgba(255,255,255,0.04)"},
+    ])
+    bar = (
+        alt.Chart(breakdown_df)
+        .mark_bar(height=22)
+        .encode(
+            x=alt.X("value:Q", stack="zero", axis=None, scale=alt.Scale(domain=[0, 1])),
+            color=alt.Color(
+                "component:N",
+                scale=alt.Scale(
+                    domain=["Match", "Stock", "Margin", "Deadline", "Остаток"],
+                    range=[
+                        COLOR_RELEVANCE_MATCH, COLOR_RELEVANCE_STOCK,
+                        COLOR_RELEVANCE_MARGIN, COLOR_RELEVANCE_DEADLINE,
+                        "rgba(255,255,255,0.04)",
+                    ],
+                ),
+                legend=None,
+            ),
+            order="order:Q",
+            tooltip=[
+                alt.Tooltip("component:N", title="Компонент"),
+                alt.Tooltip("value:Q", title="Вклад", format=".3f"),
+            ],
+        )
+        .properties(height=22, width="container")
     )
+    st.altair_chart(bar, use_container_width=True)
+
+    # Legend — 4 columns
+    legend_cols = st.columns(4)
+    mq = comp["match_quality"]
+    st_ = comp["stock"]
+    mg = comp["margin"]
+    dl = comp["deadline"]
+
+    if in_stock_bm and stock_qty_bm > 0:
+        st_caption = f"{stock_qty_bm}/50 × 25% = {st_['value']:.3f}"
+    else:
+        st_caption = "нет на складе"
+
+    if price_max_bm is not None:
+        mg_caption = f"{_format_nmc(float(price_max_bm))} → {mg['value']:.3f}"
+    else:
+        mg_caption = f"НМЦ не указана → {mg['value']:.3f}"
+
+    if deadline_int is not None:
+        dl_caption = f"{deadline_int} д → {dl['value']:.3f}"
+    else:
+        dl_caption = f"дедлайн не указан → {dl['value']:.3f}"
+
+    legend_data = [
+        ("Match quality", f"{mq['raw']:.2f} × 40% = {mq['value']:.3f}"),
+        ("Склад",         st_caption),
+        ("Маржа",         mg_caption),
+        ("Дедлайн",       dl_caption),
+    ]
+    for col, (label, detail) in zip(legend_cols, legend_data):
+        with col:
+            st.markdown(f"**{label}**")
+            st.caption(detail)
 
 # ── Блок 6: action panel (раунд 4) ───────────────────────────────────────────
 with st.container(border=True):
