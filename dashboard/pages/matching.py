@@ -803,16 +803,10 @@ def _render_notification_preview(tender_row: pd.Series, catalog_row: pd.Series) 
     st.caption(f"Позиция: {sku_pn} — {sku_name}")
 
 
-def _render_settings_info() -> None:
-    """Ссылка на настройки шаблонов."""
-    st.caption(
-        ":material/settings: Шаблоны уведомлений — [Настройки](/Настройки)",
-    )
-
 
 def _render_default_buttons(decision: str, form_key: str) -> None:
     """Кнопки по умолчанию: Участвовать / Пропустить / Запросить мнение."""
-    btn_cols = st.columns([2, 2, 3])
+    btn_cols = st.columns(3)
     with btn_cols[0]:
         if st.button(
             ":material/check_circle: Участвовать",
@@ -854,7 +848,6 @@ def _render_participate_form(
         key=f"ta_participate_{form_key}",
         height=80,
     )
-    _render_settings_info()
     send_cols = st.columns([1, 1, 4])
     with send_cols[0]:
         if st.button(
