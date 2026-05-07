@@ -34,6 +34,9 @@ Gate 6   [⬜ TODO]   Dashboard pages — Данные + Аналитика (3 �
 Gate 7   [⬜ TODO]   Dashboard pages — Система (3 стр)
       — Deferred: Telegram preview в action panel (интеграция с реальным Bot API)
       — Deferred: i18n шаблонов уведомлений (участвовать/пропустить/запросить)
+      — Deferred: при изменении формулы calculate_relevance в src/splink_config.py
+        синхронно обновить _decompose_relevance в dashboard/pages/matching.py
+        и caption-форматы в легенде блока 5 (формулы '× 40%' и т.д.)
 Gate 8   [⬜ TODO]   Integration: LLM-judge + Telegram alerts
       — Deferred: реальная отправка уведомлений из action panel → Telegram
 Gate 9   [⬜ TODO]   Splink switchover + threshold recalibration

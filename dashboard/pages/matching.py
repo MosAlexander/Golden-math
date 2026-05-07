@@ -432,79 +432,52 @@ def _render_zone_indicator(match: dict) -> None:
 
 # ── Relevance decomposition ──────────────────────────────────────────────────
 
-@st.cache_data
-def _decompose_relevance(
-    match_probability: float,
-    in_stock: bool,
-    stock_qty: int,
-    price_max: float | None,
-    deadline_days: int | None,
-) -> dict[str, dict]:
-    """Декомпозиция итогового relevance на 4 компонента.
+def _decompose_relevance(tender: dict, catalog: dict, match: dict) -> dict[str, float]:
+    """Соответствует calculate_relevance из splink_config.py.
 
-    Логика ДОЛЖНА совпадать с calculate_relevance() из splink_config.py.
-    Если splink_config меняется — этот хелпер тоже обновлять.
-
-    Возвращает {component: {"value": float, "raw": float, "weight": float}}
-    где value = вклад после умножения на вес, raw = value / weight (0..1).
+    ВАЖНО: при изменении формулы в src/splink_config.py::calculate_relevance
+    нужно синхронно обновить:
+      1. Эту функцию
+      2. Caption-форматы в легенде блока 5 в этом же файле (формулы '× 40%' и т.д.)
+    Иначе цифры в дашборде разойдутся с реальным relevance.
     """
-    from src.splink_config import calculate_relevance
+    # Match quality
+    mq = match["match_probability"] * 0.40
 
-    # Match quality (40%)
-    mq_value = match_probability * 0.40
-
-    # Stock availability (25%)
-    if in_stock and stock_qty > 0:
-        stock_score = min(stock_qty / 50, 1.0)
-        sa_value = stock_score * 0.25
+    # Stock
+    in_stock = catalog.get("in_stock", False)
+    qty = catalog.get("stock_qty", 0)
+    if in_stock and qty > 0:
+        sa = min(qty / 50, 1.0) * 0.25
     else:
-        stock_score = 0.0
-        sa_value = 0.0
+        sa = 0.0
 
-    # Margin estimate (20%)
-    price = price_max or 0
+    # Margin
+    price = tender.get("price_max", 0) or 0
     if price > 100_000:
-        me_value = 0.20
+        me = 0.20
     elif price > 50_000:
-        me_value = 0.12
+        me = 0.12
     else:
-        me_value = 0.05
+        me = 0.05
 
-    # Deadline urgency (15%)
-    days = deadline_days if deadline_days is not None else 30
+    # Deadline
+    days = tender.get("deadline_days", 30) or 30
     if days <= 5:
-        du_value = 0.15
+        du = 0.15
     elif days <= 10:
-        du_value = 0.10
+        du = 0.10
     elif days <= 20:
-        du_value = 0.05
+        du = 0.05
     else:
-        du_value = 0.02
+        du = 0.02
 
-    result = {
-        "match_quality": {"value": mq_value,  "raw": match_probability, "weight": 0.40},
-        "stock":         {"value": sa_value,   "raw": stock_score,       "weight": 0.25},
-        "margin":        {"value": me_value,   "raw": me_value / 0.20,   "weight": 0.20},
-        "deadline":      {"value": du_value,   "raw": du_value / 0.15,   "weight": 0.15},
+    return {
+        "match_quality": mq,
+        "stock": sa,
+        "margin": me,
+        "deadline": du,
     }
-
-    # Sanity-check: сумма компонентов должна совпадать с calculate_relevance
-    match_dict = {
-        "match_probability": match_probability,
-        "in_stock": in_stock,
-        "stock_qty": stock_qty,
-        "price_max": price_max,
-        "deadline_days": deadline_days,
-    }
-    expected = calculate_relevance(match_dict)
-    actual = sum(c["value"] for c in result.values())
-    if abs(actual - expected) > 1e-9:
-        logger.warning(
-            "_decompose_relevance drift: computed=%.10f expected=%.10f",
-            actual, expected,
-        )
-
-    return result
 
 
 # ── Block 1: match card ───────────────────────────────────────────────────────
@@ -680,7 +653,7 @@ with st.container(border=True):
 # ── Блок 4: LLM-плейсхолдер (только borderline) ──────────────────────────────
 if best_match.get("decision") == "borderline":
     with st.container(border=True):
-        st.markdown("#### :primary[:material/auto_awesome:] Мнение LLM-эксперта")
+        st.markdown("#### :primary[:material/auto_awesome:] Заключение AI-эксперта")
         info_col, btn_col = st.columns([4, 1])
         with info_col:
             st.markdown(
@@ -700,35 +673,23 @@ if best_match.get("decision") == "borderline":
             )
 
 # ── Блок 5: relevance breakdown ───────────────────────────────────────────────
-relevance      = float(best_match.get("relevance", 0))
-in_stock_bm    = bool(best_match.get("in_stock", False))
-stock_qty_bm   = int(best_match.get("stock_qty", 0) or 0)
-price_max_bm   = best_match.get("price_max")
-deadline_bm    = best_match.get("deadline_days")
-deadline_int   = int(deadline_bm) if deadline_bm is not None else None
-
-comp = _decompose_relevance(
-    match_probability=float(best_match.get("match_probability", 0)),
-    in_stock=in_stock_bm,
-    stock_qty=stock_qty_bm,
-    price_max=float(price_max_bm) if price_max_bm is not None else None,
-    deadline_days=deadline_int,
-)
+relevance = float(best_match.get("relevance", 0))
+comp = _decompose_relevance(tender_row, catalog_row, best_match)
 
 with st.container(border=True):
-    header_left, header_right = st.columns([2, 1])
-    with header_left:
+    title_col, value_col = st.columns([3, 1])
+    with title_col:
         st.markdown("#### :primary[:material/leaderboard:] Стоит ли брать в работу")
-    with header_right:
+    with value_col:
         st.markdown(f"### :primary[**{relevance:.2f}**]")
-        st.caption("Приоритет в ленте")
+        st.caption("Relevance")
 
     # Segmented bar
     breakdown_df = pd.DataFrame([
-        {"component": "Match",    "value": comp["match_quality"]["value"], "order": 1, "color": COLOR_RELEVANCE_MATCH},
-        {"component": "Stock",    "value": comp["stock"]["value"],         "order": 2, "color": COLOR_RELEVANCE_STOCK},
-        {"component": "Margin",   "value": comp["margin"]["value"],        "order": 3, "color": COLOR_RELEVANCE_MARGIN},
-        {"component": "Deadline", "value": comp["deadline"]["value"],      "order": 4, "color": COLOR_RELEVANCE_DEADLINE},
+        {"component": "Match",    "value": comp["match_quality"], "order": 1, "color": COLOR_RELEVANCE_MATCH},
+        {"component": "Stock",    "value": comp["stock"],         "order": 2, "color": COLOR_RELEVANCE_STOCK},
+        {"component": "Margin",   "value": comp["margin"],        "order": 3, "color": COLOR_RELEVANCE_MARGIN},
+        {"component": "Deadline", "value": comp["deadline"],      "order": 4, "color": COLOR_RELEVANCE_DEADLINE},
         {"component": "Остаток",  "value": max(0.0, 1.0 - relevance),     "order": 5, "color": "rgba(255,255,255,0.04)"},
     ])
     bar = (
@@ -760,31 +721,11 @@ with st.container(border=True):
 
     # Legend — 4 columns
     legend_cols = st.columns(4)
-    mq = comp["match_quality"]
-    st_ = comp["stock"]
-    mg = comp["margin"]
-    dl = comp["deadline"]
-
-    if in_stock_bm and stock_qty_bm > 0:
-        st_caption = f"{stock_qty_bm}/50 × 25% = {st_['value']:.3f}"
-    else:
-        st_caption = "нет на складе"
-
-    if price_max_bm is not None:
-        mg_caption = f"{_format_nmc(float(price_max_bm))} → {mg['value']:.3f}"
-    else:
-        mg_caption = f"НМЦ не указана → {mg['value']:.3f}"
-
-    if deadline_int is not None:
-        dl_caption = f"{deadline_int} д → {dl['value']:.3f}"
-    else:
-        dl_caption = f"дедлайн не указан → {dl['value']:.3f}"
-
     legend_data = [
-        ("Match quality", f"{mq['raw']:.2f} × 40% = {mq['value']:.3f}"),
-        ("Склад",         st_caption),
-        ("Маржа",         mg_caption),
-        ("Дедлайн",       dl_caption),
+        ("Качество матча", f"{best_match['match_probability']:.2f} × 40% = {comp['match_quality']:.3f}"),
+        ("Склад",          f"{int(catalog_row.get('stock_qty', 0))} шт × 25% = {comp['stock']:.3f}"),
+        ("Маржа НМЦ",      f"{_format_nmc(tender_row.get('price_max'))} × 20% = {comp['margin']:.3f}"),
+        ("Срочность",      f"{int(tender_row.get('deadline_days', 0))} дней × 15% = {comp['deadline']:.3f}"),
     ]
     for col, (label, detail) in zip(legend_cols, legend_data):
         with col:
