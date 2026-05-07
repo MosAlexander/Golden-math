@@ -424,8 +424,8 @@ def _render_zone_indicator(match: dict) -> None:
     chart = (bar + marker).properties(width="container", height=20)
     st.altair_chart(chart, use_container_width=True)
 
-    cols = st.columns([75, 17, 8])
-    cols[0].caption("reject (<0.75)")
+    cols = st.columns([33, 33, 34])
+    cols[0].caption("reject")
     cols[1].caption("borderline")
     cols[2].caption("auto")
 
@@ -791,9 +791,258 @@ with st.container(border=True):
             st.markdown(f"**{label}**")
             st.caption(detail)
 
-# ── Блок 6: action panel (раунд 4) ───────────────────────────────────────────
-with st.container(border=True):
-    st.info(
-        "Блок действий (участвовать / пропустить / запросить мнение) — следующие раунды",
-        icon=":material/send:",
+# ── Action panel helpers ─────────────────────────────────────────────────────
+
+def _render_notification_preview(tender_row: pd.Series, catalog_row: pd.Series) -> None:
+    """Превью уведомления: тендер + SKU."""
+    st.markdown("**Предпросмотр уведомления**")
+    tender_name = tender_row.get("name", tender_row.get("title", "—"))
+    sku_name = catalog_row.get("name", catalog_row.get("description", "—"))
+    sku_pn = catalog_row.get("part_number", "—")
+    st.caption(f"Тендер: {tender_name}")
+    st.caption(f"Позиция: {sku_pn} — {sku_name}")
+
+
+def _render_settings_info() -> None:
+    """Ссылка на настройки шаблонов."""
+    st.caption(
+        ":material/settings: Шаблоны уведомлений — [Настройки](/Настройки)",
     )
+
+
+def _render_default_buttons(decision: str, form_key: str) -> None:
+    """Кнопки по умолчанию: Участвовать / Пропустить / Запросить мнение."""
+    btn_cols = st.columns([2, 2, 3])
+    with btn_cols[0]:
+        if st.button(
+            ":material/check_circle: Участвовать",
+            key=f"btn_participate_{form_key}",
+            type="primary",
+            use_container_width=True,
+        ):
+            st.session_state[form_key] = "participate"
+            st.rerun()
+    with btn_cols[1]:
+        if st.button(
+            ":material/cancel: Пропустить",
+            key=f"btn_skip_{form_key}",
+            use_container_width=True,
+        ):
+            st.session_state[form_key] = "skip"
+            st.rerun()
+    with btn_cols[2]:
+        if st.button(
+            ":material/help: Запросить мнение",
+            key=f"btn_ask_{form_key}",
+            use_container_width=True,
+        ):
+            st.session_state[form_key] = "ask"
+            st.rerun()
+
+
+def _render_participate_form(
+    tender_row: pd.Series,
+    catalog_row: pd.Series,
+    notif_key: str,
+    form_key: str,
+) -> None:
+    """Форма «Участвовать»."""
+    _render_notification_preview(tender_row, catalog_row)
+    comment = st.text_area(
+        "Комментарий к заявке (необязательно)",
+        placeholder="Например: есть в наличии 500 шт., готовы к отгрузке за 3 дня",
+        key=f"ta_participate_{form_key}",
+        height=80,
+    )
+    _render_settings_info()
+    send_cols = st.columns([1, 1, 4])
+    with send_cols[0]:
+        if st.button(
+            ":material/send: Отправить",
+            key=f"send_participate_{form_key}",
+            type="primary",
+            use_container_width=True,
+        ):
+            st.session_state[notif_key] = {
+                "type": "participate",
+                "comment": comment,
+                "ts": pd.Timestamp.now().strftime("%d.%m.%Y %H:%M"),
+            }
+            del st.session_state[form_key]
+            st.toast("Уведомление об участии отправлено!", icon=":material/check_circle:")
+            st.rerun()
+    with send_cols[1]:
+        if st.button(
+            "Отмена",
+            key=f"cancel_participate_{form_key}",
+            use_container_width=True,
+        ):
+            del st.session_state[form_key]
+            st.rerun()
+
+
+def _render_skip_form(notif_key: str, form_key: str) -> None:
+    """Форма «Пропустить»."""
+    st.markdown("**Причина пропуска**")
+    reason = st.pills(
+        "Причина",
+        options=["Нет в наличии", "Нерентабельно", "Не наша номенклатура", "Другое"],
+        key=f"pills_skip_{form_key}",
+        label_visibility="collapsed",
+    )
+    note = st.text_input(
+        "Уточнение (необязательно)",
+        placeholder="Дополнительные детали…",
+        key=f"ti_skip_{form_key}",
+    )
+    send_cols = st.columns([1, 1, 4])
+    with send_cols[0]:
+        if st.button(
+            ":material/send: Пропустить",
+            key=f"send_skip_{form_key}",
+            type="primary",
+            use_container_width=True,
+            disabled=reason is None,
+        ):
+            st.session_state[notif_key] = {
+                "type": "skip",
+                "reason": reason,
+                "note": note,
+                "ts": pd.Timestamp.now().strftime("%d.%m.%Y %H:%M"),
+            }
+            del st.session_state[form_key]
+            st.toast("Тендер помечен как пропущенный.", icon=":material/cancel:")
+            st.rerun()
+    with send_cols[1]:
+        if st.button(
+            "Отмена",
+            key=f"cancel_skip_{form_key}",
+            use_container_width=True,
+        ):
+            del st.session_state[form_key]
+            st.rerun()
+
+
+def _render_ask_form(
+    tender_row: pd.Series,
+    catalog_row: pd.Series,
+    best_match: dict,
+    notif_key: str,
+    form_key: str,
+) -> None:
+    """Форма «Запросить мнение»."""
+    _render_notification_preview(tender_row, catalog_row)
+    question = st.text_area(
+        "Вопрос для команды",
+        placeholder="Например: стоит ли участвовать при марже ниже 12%?",
+        key=f"ta_ask_{form_key}",
+        height=80,
+    )
+    send_cols = st.columns([1, 1, 4])
+    with send_cols[0]:
+        if st.button(
+            ":material/send: Отправить",
+            key=f"send_ask_{form_key}",
+            type="primary",
+            use_container_width=True,
+            disabled=not question.strip() if question else True,
+        ):
+            st.session_state[notif_key] = {
+                "type": "ask",
+                "question": question,
+                "ts": pd.Timestamp.now().strftime("%d.%m.%Y %H:%M"),
+                "score": best_match.get("score", 0.0),
+            }
+            del st.session_state[form_key]
+            st.toast("Запрос мнения отправлен!", icon=":material/help:")
+            st.rerun()
+    with send_cols[1]:
+        if st.button(
+            "Отмена",
+            key=f"cancel_ask_{form_key}",
+            use_container_width=True,
+        ):
+            del st.session_state[form_key]
+            st.rerun()
+
+
+def _render_sent_state(notif: dict, notif_key: str, form_key: str) -> None:
+    """Состояние «отправлено» — показывает итог и доп. кнопки."""
+    ntype = notif.get("type", "participate")
+    ts = notif.get("ts", "—")
+
+    if ntype == "participate":
+        st.success(
+            f":material/check_circle: Заявка на участие отправлена {ts}",
+            icon=None,
+        )
+    elif ntype == "skip":
+        reason = notif.get("reason", "—")
+        st.warning(
+            f":material/cancel: Пропущено {ts} — {reason}",
+            icon=None,
+        )
+    else:
+        st.info(
+            f":material/help: Запрос мнения отправлен {ts}",
+            icon=None,
+        )
+
+    extra_cols = st.columns([2, 2, 3])
+    with extra_cols[0]:
+        if st.button(
+            ":material/undo: Отменить",
+            key=f"undo_{notif_key}",
+            use_container_width=True,
+        ):
+            del st.session_state[notif_key]
+            st.rerun()
+    with extra_cols[1]:
+        if ntype != "ask":
+            if st.button(
+                ":material/help: Запросить мнение",
+                key=f"extra_ask_{notif_key}",
+                use_container_width=True,
+            ):
+                del st.session_state[notif_key]
+                st.session_state[form_key] = "ask"
+                st.rerun()
+
+
+def _render_form(
+    form_type: str,
+    tender_row: pd.Series,
+    catalog_row: pd.Series,
+    best_match: dict,
+    notif_key: str,
+    form_key: str,
+) -> None:
+    """Диспетчер форм."""
+    labels = {
+        "participate": ":material/check_circle: Участвовать",
+        "skip": ":material/cancel: Пропустить",
+        "ask": ":material/help: Запросить мнение",
+    }
+    st.markdown(f"**{labels.get(form_type, form_type)}**")
+    if form_type == "participate":
+        _render_participate_form(tender_row, catalog_row, notif_key, form_key)
+    elif form_type == "skip":
+        _render_skip_form(notif_key, form_key)
+    else:
+        _render_ask_form(tender_row, catalog_row, best_match, notif_key, form_key)
+
+
+# ── Блок 6: action panel ──────────────────────────────────────────────────────
+notif_key = f"notif_{tender_id}"
+form_key = f"form_{tender_id}"
+
+with st.container(border=True):
+    st.markdown("#### :primary[:material/send:] Действие")
+    notif = st.session_state.get(notif_key)
+    open_form = st.session_state.get(form_key)
+    if notif is not None:
+        _render_sent_state(notif, notif_key, form_key)
+    elif open_form is not None:
+        _render_form(open_form, tender_row, catalog_row, best_match, notif_key, form_key)
+    else:
+        _render_default_buttons(best_match.get("decision", "auto"), form_key)

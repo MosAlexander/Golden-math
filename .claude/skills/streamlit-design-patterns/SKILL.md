@@ -189,11 +189,12 @@ COMPARE_PALETTE = ['#8B5CF6', '#F59E0B']
 
 ---
 
-## Visualization: Altair Only
+## Visualization: Altair by Default, Plotly for Exceptions
 
-- Use **Altair** as the sole charting library — bar charts, lollipop charts, grouped bars, stacked bars, donut charts, diverging bars, heatmaps.
+- Use **Altair** as the default charting library — bar charts, lollipop charts, grouped bars, stacked bars, donut charts, diverging bars, heatmaps.
 - Always call `st.altair_chart(chart, use_container_width=True)` — never set a fixed pixel width.
 - Import colors from `chart_utils.py` — never hardcode hex values in page files.
+- **Plotly exception**: use `st.plotly_chart(fig, use_container_width=True)` only for chart types unavailable in Altair: `go.Scatterpolar` (radar), `go.Waterfall`, Sankey, Sunburst. Do not use Plotly for bar/line/scatter — those stay in Altair.
 
 ### Altair Chart Conventions
 

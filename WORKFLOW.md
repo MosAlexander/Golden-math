@@ -26,17 +26,21 @@ Gate 4   [✅ PASSED]      Pipeline cache + dashboard foundation
       4.2 ✅ PASSED — dashboard/data_utils.py
       4.3 ✅ PASSED — dashboard/streamlit_app.py
       4.4 ✅ PASSED — dashboard/pages/ заглушки (9 файлов)
-Gate 5   [⏳ IN PROGRESS]  Dashboard pages — Мониторинг (3 стр)
+Gate 5   [✅ PASSED]  Dashboard pages — Мониторинг (3 стр)
       5.1 ✅ PASSED — pages/overview.py (KPI + 3 chart блока)
       5.2 ✅ PASSED — pages/tender_feed.py (фильтры + таблица 9 колонок)
-      5.3 ⏳ NEXT    — pages/matching.py
+      5.3 ✅ PASSED — pages/matching.py (4 раунда; action panel + Plotly radar/waterfall)
 Gate 6   [⬜ TODO]   Dashboard pages — Данные + Аналитика (3 стр)
 Gate 7   [⬜ TODO]   Dashboard pages — Система (3 стр)
+      — Deferred: Telegram preview в action panel (интеграция с реальным Bot API)
+      — Deferred: i18n шаблонов уведомлений (участвовать/пропустить/запросить)
 Gate 8   [⬜ TODO]   Integration: LLM-judge + Telegram alerts
+      — Deferred: реальная отправка уведомлений из action panel → Telegram
 Gate 9   [⬜ TODO]   Splink switchover + threshold recalibration
+      — Deferred: radar axes из реального Splink feature importance (сейчас mock)
 ```
 
-**Следующее действие:** Gate 5.3 — `dashboard/pages/matching.py` (детальный разбор выбранного тендера).
+**Следующее действие:** Gate 6 — `dashboard/pages/` Данные (Каталог SKU, Win/Loss) + Аналитика (Drill Down).
 
 ---
 

@@ -62,7 +62,7 @@ Radal Микроэлектроника (ООО Радал, ИНН 2634101203, С
 ## Dashboard-конвенции
 - При работе с дашбордом — читай `.claude/skills/streamlit-design-patterns/SKILL.md`
 - Цвета ТОЛЬКО из `dashboard/chart_utils.py` — никогда не хардкодить hex в страницах
-- Графики: только Altair, `st.altair_chart(chart, use_container_width=True)`
+- Графики: Altair по умолчанию, `st.altair_chart(chart, use_container_width=True)`. Исключение: Plotly (`st.plotly_chart`) разрешён только для radar (Scatterpolar), waterfall (go.Waterfall), sankey и sunburst — типов, недоступных в Altair.
 - Sidebar: только навигация + статус API, фильтры локальные на каждой странице
 - Запрещено: эмодзи-маркеры для статусов, unsafe_allow_html, кастомный CSS
 
