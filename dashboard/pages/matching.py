@@ -734,7 +734,7 @@ with st.container(border=True):
 
 # ── Action panel helpers ─────────────────────────────────────────────────────
 
-def _render_notification_preview(tender_row: pd.Series, catalog_row: pd.Series) -> None:
+def _render_notification_preview(tender_row: dict, catalog_row: dict) -> None:
     """Превью уведомления: тендер + SKU."""
     st.markdown("**Предпросмотр уведомления**")
     tender_name = tender_row.get("name", tender_row.get("title", "—"))
@@ -776,8 +776,8 @@ def _render_default_buttons(decision: str, form_key: str) -> None:
 
 
 def _render_participate_form(
-    tender_row: pd.Series,
-    catalog_row: pd.Series,
+    tender_row: dict,
+    catalog_row: dict,
     notif_key: str,
     form_key: str,
 ) -> None:
@@ -858,8 +858,8 @@ def _render_skip_form(notif_key: str, form_key: str) -> None:
 
 
 def _render_ask_form(
-    tender_row: pd.Series,
-    catalog_row: pd.Series,
+    tender_row: dict,
+    catalog_row: dict,
     best_match: dict,
     notif_key: str,
     form_key: str,
@@ -945,8 +945,8 @@ def _render_sent_state(notif: dict, notif_key: str, form_key: str) -> None:
 
 def _render_form(
     form_type: str,
-    tender_row: pd.Series,
-    catalog_row: pd.Series,
+    tender_row: dict,
+    catalog_row: dict,
     best_match: dict,
     notif_key: str,
     form_key: str,
