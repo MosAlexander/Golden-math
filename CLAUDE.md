@@ -75,7 +75,7 @@ Radal Микроэлектроника (ООО Радал, ИНН 2634101203, С
 ## Команды
 - `pytest tests/ -v` — запуск тестов
 - `python -m src.demo_pipeline` — полный пайплайн
-- `streamlit run dashboard/streamlit_app.py` — дашборд
+- `python -m streamlit run dashboard/streamlit_app.py` — дашборд
 
 ## При работе с кодом
 - Всегда читай docs/RULES.md перед изменением matching-логики

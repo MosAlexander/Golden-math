@@ -821,7 +821,7 @@ print('Tenders:', len(load_tenders()), 'rows')
 # → Tenders: 14 rows
 
 # 3. Dashboard запускается
-streamlit run dashboard/streamlit_app.py
+python -m streamlit run dashboard/streamlit_app.py
 # → Нет ошибок импорта
 # → 9 пунктов навигации в 4 группах
 # → Статус подключений в sidebar
@@ -880,7 +880,7 @@ python -m pytest tests/ -v --tb=short
 
 ### Критерий прохождения Gate 5
 ```bash
-streamlit run dashboard/streamlit_app.py
+python -m streamlit run dashboard/streamlit_app.py
 # Все 3 страницы открываются без ошибок
 # Нет хардкода hex в page-файлах
 # Нет emoji-маркеров для статусов
@@ -1073,7 +1073,7 @@ python -m src.demo_pipeline
 # → Accuracy ≥ 11/14 (улучшение vs fallback 9/14 за счёт сценариев B/C)
 
 # 3. Dashboard работает на Splink-данных
-streamlit run dashboard/streamlit_app.py
+python -m streamlit run dashboard/streamlit_app.py
 # → Все 9 страниц открываются
 # → Цифры в Обзоре отражают новое распределение
 
@@ -1097,7 +1097,7 @@ python -m pytest tests/test_pipeline_e2e.py -v
 python -m src.demo_pipeline
 
 # Dashboard
-streamlit run dashboard/streamlit_app.py
+python -m streamlit run dashboard/streamlit_app.py
 
 # Claude Code commands
 /run-pipeline        # запуск + сравнение с pipeline_runs.log
