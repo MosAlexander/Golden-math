@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from datetime import datetime
 
 import altair as alt
@@ -11,6 +12,8 @@ import streamlit as st
 import logging
 
 from dashboard.chart_utils import (
+    PRIMARY_COLOR,
+    PRIMARY_COLOR_FILL,
     COLOR_AUTO,
     COLOR_BORDERLINE,
     COLOR_REJECT,
@@ -18,6 +21,7 @@ from dashboard.chart_utils import (
     COLOR_RELEVANCE_STOCK,
     COLOR_RELEVANCE_MARGIN,
     COLOR_RELEVANCE_DEADLINE,
+    DONUT_PALETTES,
 )
 
 logger = logging.getLogger(__name__)
@@ -61,7 +65,6 @@ def _compute_radar_axes(
     catalog_df = load_catalog()
     cat = catalog_df[catalog_df["id"] == catalog_id].iloc[0].to_dict()
 
-    # params может быть строкой JSON в зависимости от источника
     cat_params = cat.get("params", {})
     if isinstance(cat_params, str):
         try:
@@ -107,9 +110,9 @@ def _build_radar_chart(axes: dict[str, float]) -> go.Figure:
         r=values + [values[0]],
         theta=categories + [categories[0]],
         fill="toself",
-        fillcolor="rgba(255, 152, 0, 0.18)",
-        line=dict(color="#FF9800", width=1.5),
-        marker=dict(size=8, color="#FF9800"),
+        fillcolor=PRIMARY_COLOR_FILL,
+        line=dict(color=PRIMARY_COLOR, width=1.5),
+        marker=dict(size=8, color=PRIMARY_COLOR),
         hovertemplate="<b>%{theta}</b><br>Совпало: %{r:.0f}<extra></extra>",
         showlegend=False,
     ))
@@ -132,50 +135,11 @@ def _build_radar_chart(axes: dict[str, float]) -> go.Figure:
         paper_bgcolor="rgba(0, 0, 0, 0)",
         plot_bgcolor="rgba(0, 0, 0, 0)",
         margin=dict(l=40, r=40, t=20, b=20),
-        height=340,
+        height=300,
         showlegend=False,
         font=dict(family="Source Sans Pro, sans-serif"),
     )
     return fig
-
-
-def _get_radar_insights(
-    axes: dict[str, float],
-    catalog_row: dict,
-) -> list[str]:
-    matched_count = sum(1 for v in axes.values() if v == 1.0)
-    total = len(axes)
-    lines: list[str] = []
-
-    if matched_count == total:
-        lines.append(f":primary[**Все {total} атрибутов совпали**] — идеальный матч по всем осям.")
-    else:
-        lines.append(f":primary[**Совпало {matched_count} из {total} атрибутов**] — параметрический матч.")
-
-    if axes["Part Number"] == 1.0:
-        pn = catalog_row.get("part_number", "—")
-        lines.append(f":primary[**PN exact match**]: {pn} в тендере точно совпадает с каталогом.")
-    else:
-        lines.append(":primary[**Part number отсутствует**] в тексте тендера — самый сильный сигнал недоступен.")
-
-    if axes["Производитель"] == 1.0:
-        mfr = catalog_row.get("manufacturer", "—")
-        lines.append(f":primary[**Производитель подтверждён**]: {mfr} совпадает.")
-    else:
-        lines.append(":primary[**Производитель не указан**] — тендер открытый по бренду.")
-
-    if axes["Напряжение"] == 1.0 and axes["Ток"] == 1.0:
-        v = catalog_row.get("params", {})
-        if isinstance(v, str):
-            v = {}
-        lines.append(
-            f":primary[**Параметры в точности**]: "
-            f"{v.get('voltage_v', '—')}V × {v.get('current_a', '—')}A."
-        )
-    elif axes["Напряжение"] == 1.0 or axes["Ток"] == 1.0:
-        lines.append(":primary[**Параметры частично совпадают**] — не все характеристики извлечены.")
-
-    return lines
 
 
 # ── Waterfall helpers ─────────────────────────────────────────────────────────
@@ -292,142 +256,170 @@ def _decompose_score(
     return contributions
 
 
-def _build_waterfall_chart(contributions: list[dict], match: dict) -> go.Figure:
-    decision = match.get("decision", "reject")
-    prob = float(match.get("match_probability", 0))
+# ── Donut chart ───────────────────────────────────────────────────────────────
 
-    if decision == "auto":
-        total_color = "#16a34a"
-    elif decision == "borderline":
-        total_color = "#FACC15"
+def _build_donut_chart(contributions: list[dict], match: dict) -> go.Figure:
+    """Donut с накоплением: показывает 7 факторов + сегмент «до 1.0».
+
+    Заменяет waterfall. Использует те же contributions из _decompose_score.
+    """
+    decision = match.get("decision", "borderline")
+    total = sum(c["value"] for c in contributions)
+    gap_to_one = max(0.0, 1.0 - total)
+
+    sorted_contribs = sorted(contributions, key=lambda c: c["value"], reverse=True)
+    nonzero = [c for c in sorted_contribs if c["value"] > 0.001]
+
+    labels = [c["step"] for c in nonzero] + ["до 1.0"]
+    values = [c["value"] for c in nonzero] + [gap_to_one]
+
+    base_palette = DONUT_PALETTES.get(decision, DONUT_PALETTES["borderline"])
+    if len(nonzero) <= len(base_palette):
+        colors = base_palette[: len(nonzero)] + ["rgba(255, 255, 255, 0.06)"]
     else:
-        total_color = "#EF4444"
+        colors = (
+            base_palette
+            + [base_palette[-1]] * (len(nonzero) - len(base_palette))
+            + ["rgba(255, 255, 255, 0.06)"]
+        )
 
-    x_values  = [c["step"] for c in contributions] + ["Итог"]
-    y_values  = [c["value"] for c in contributions] + [prob]
-    measures  = ["relative"] * len(contributions) + ["total"]
-    text_vals = [
-        f"+{c['value']:.2f}" if c["value"] > 0 else "0.00"
-        for c in contributions
-    ] + [f"{prob:.2f}"]
+    center_color = {
+        "auto": COLOR_AUTO,
+        "borderline": COLOR_BORDERLINE,
+        "reject": COLOR_REJECT,
+    }.get(decision, COLOR_BORDERLINE)
 
-    fig = go.Figure(go.Waterfall(
-        x=x_values,
-        y=y_values,
-        measure=measures,
-        text=text_vals,
-        textposition="outside",
-        connector=dict(
-            line=dict(color="rgba(255, 255, 255, 0.25)", width=1, dash="dot"),
-        ),
-        increasing=dict(marker=dict(color="#8B5CF6", line=dict(width=0))),
-        decreasing=dict(marker=dict(color="#8B5CF6", line=dict(width=0))),
-        totals=dict(marker=dict(color=total_color, line=dict(width=0))),
-        hovertemplate="<b>%{x}</b><br>Вклад: %{y:+.3f}<extra></extra>",
-    ))
-    fig.update_layout(
-        paper_bgcolor="rgba(0, 0, 0, 0)",
-        plot_bgcolor="rgba(0, 0, 0, 0)",
-        margin=dict(l=40, r=20, t=30, b=40),
-        height=340,
-        xaxis=dict(
-            tickfont=dict(size=11, color="#E5E7EB"),
-            showgrid=False,
-            zeroline=False,
-        ),
-        yaxis=dict(
-            range=[0, 1.10],
-            tickformat=".2f",
-            tickfont=dict(size=10, color="#9CA3AF"),
-            gridcolor="rgba(255, 255, 255, 0.06)",
-            zeroline=False,
-        ),
-        font=dict(family="Source Sans Pro, sans-serif"),
-        showlegend=False,
+    score = match.get("match_probability", 0.0)
+
+    fig = go.Figure(
+        go.Pie(
+            labels=labels,
+            values=values,
+            hole=0.62,
+            sort=False,
+            direction="clockwise",
+            marker=dict(
+                colors=colors,
+                line=dict(color="#0E1117", width=2),
+            ),
+            textposition="outside",
+            textinfo="label",
+            textfont=dict(
+                family="Source Sans Pro, sans-serif",
+                size=11,
+                color="rgba(250, 250, 250, 0.85)",
+            ),
+            hovertemplate="<b>%{label}</b><br>+%{value:.2f}<extra></extra>",
+            showlegend=False,
+        )
     )
+
+    fig.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        margin=dict(t=30, b=30, l=40, r=40),
+        height=300,
+        uniformtext_minsize=10,
+        uniformtext_mode="hide",
+        annotations=[
+            dict(
+                text=f"<b>{int(score * 100)}%</b>",
+                showarrow=False,
+                font=dict(size=32, color=center_color, family="Source Sans Pro, sans-serif"),
+                xref="paper", yref="paper",
+                x=0.5, y=0.54,
+            ),
+            dict(
+                text=decision,
+                showarrow=False,
+                font=dict(size=12, color="rgba(250, 250, 250, 0.6)", family="Source Sans Pro, sans-serif"),
+                xref="paper", yref="paper",
+                x=0.5, y=0.42,
+            ),
+        ],
+    )
+
     return fig
 
 
-def _get_waterfall_insights(contributions: list[dict], match: dict) -> list[str]:
-    decision = match.get("decision", "reject")
-    prob = float(match.get("match_probability", 0))
+# ── Match insights ────────────────────────────────────────────────────────────
 
-    pn_v    = contributions[0]["value"]
-    mfr_v   = contributions[1]["value"]
-    bonus_v = contributions[2]["value"]
-    param_v = sum(c["value"] for c in contributions[3:6])  # Кат + V + A
-    name_v  = contributions[6]["value"]
+@dataclass
+class MatchInsights:
+    what_matched: list[str]
+    how_score_built: list[str]
 
-    lines: list[str] = []
 
-    if pn_v >= 0.60:
-        lines.append(":primary[**PN дал +0.60**] — это решающий фактор, без него матч был бы borderline.")
+def _get_match_insights(
+    radar_axes: dict[str, float],
+    contributions: list[dict],
+    catalog_row: dict,
+    best_match: dict,
+) -> MatchInsights:
+    """Собирает insights для объединённого блока «Анализ матча».
+
+    Заменяет _get_radar_insights и _get_waterfall_insights.
+    Каждая секция — до 3 пунктов.
+    """
+    decision = best_match.get("decision", "reject")
+    prob = float(best_match.get("match_probability", 0))
+
+    # Секция 1: атрибутные совпадения
+    what: list[str] = []
+
+    pn_v = contributions[0]["value"]
+    if radar_axes.get("Part Number", 0) == 1.0:
+        pn = catalog_row.get("part_number", "—")
+        what.append(f"**PN exact match:** {pn}.")
     elif pn_v >= 0.40:
-        lines.append(f":primary[**PN частичный +{pn_v:.2f}**] — нет точного PN, но описание совпадает с каталогом.")
+        what.append("**PN частичный:** описание совпадает с каталогом.")
     else:
-        lines.append(":primary[**Part number не извлечён**] — параметрический матч без PN.")
+        what.append("**Part number не извлечён:** самый сильный сигнал недоступен.")
 
-    if mfr_v >= 0.20:
-        lines.append(":primary[**MFR подтверждение +0.20**] — производитель прямо назван в ТЗ.")
+    if radar_axes.get("Производитель", 0) == 1.0:
+        mfr = catalog_row.get("manufacturer", "—")
+        what.append(f"**MFR подтверждён:** {mfr}.")
     else:
-        lines.append(":primary[**MFR не определён**] — это главная причина неполной уверенности.")
+        what.append("**MFR не указан:** тендер открытый по бренду.")
 
-    total_extra = param_v + name_v
-    if total_extra >= 0.10:
-        lines.append(f":primary[**Параметрика +{total_extra:.2f}**] — категория, напряжение, ток поддерживают матч.")
+    matched_params = sum(
+        1 for k in ("Напряжение", "Ток", "Категория")
+        if radar_axes.get(k, 0) == 1.0
+    )
+    if matched_params >= 2:
+        what.append(f"**Параметрика:** совпало {matched_params} из 3 характеристик.")
+    elif matched_params == 1:
+        what.append("**Параметрика:** слабый сигнал, 1 из 3 характеристик.")
     else:
-        lines.append(f":primary[**Параметрика +{total_extra:.2f}**] — слабый сигнал.")
+        what.append("**Параметрика:** нет совпадений по V/A/категории.")
+
+    # Секция 2: вклады в score
+    how: list[str] = []
+
+    pn_contrib = contributions[0]["value"]
+    if pn_contrib >= 0.60:
+        how.append(f"**PN +{pn_contrib:.2f}** — решающий фактор.")
+    elif pn_contrib >= 0.40:
+        how.append(f"**PN +{pn_contrib:.2f}** — частичное совпадение.")
+    else:
+        how.append("**PN +0.00** — Part number не найден.")
+
+    mfr_contrib = contributions[1]["value"]
+    if mfr_contrib > 0:
+        how.append(f"**MFR +{mfr_contrib:.2f}** — производитель в ТЗ.")
+    else:
+        how.append("**MFR +0.00** — производитель не определён.")
 
     if decision == "auto":
         margin = prob - 0.92
-        lines.append(f":primary[**Уверенно в auto-зоне**] — порог пройден с запасом {margin * 100:.0f}%.")
+        how.append(f"**Auto-зона** — порог пройден с запасом {margin * 100:.0f}%.")
     elif decision == "borderline":
         gap = 0.92 - prob
-        lines.append(f":primary[**Не дотянули {gap * 100:.0f}%**] до auto-зоны (≥0.92).")
+        how.append(f"**Не дотянули {gap * 100:.0f}%** до auto-зоны (≥0.92).")
     else:
-        lines.append(":primary[**Score ниже порога**] — матч не подтверждён.")
+        how.append("**Score ниже порога** — матч не подтверждён.")
 
-    return lines
-
-
-# ── Zone indicator ────────────────────────────────────────────────────────────
-
-def _render_zone_indicator(match: dict) -> None:
-    prob = float(match.get("match_probability", 0))
-
-    df = pd.DataFrame([
-        {"zone": "reject",     "width": 0.75, "order": 0},
-        {"zone": "borderline", "width": 0.17, "order": 1},
-        {"zone": "auto",       "width": 0.08, "order": 2},
-    ])
-    bar = (
-        alt.Chart(df)
-        .mark_bar(height=8)
-        .encode(
-            x=alt.X("width:Q", stack="zero", axis=None, scale=alt.Scale(domain=[0, 1])),
-            color=alt.Color(
-                "zone:N",
-                scale=alt.Scale(
-                    domain=["reject", "borderline", "auto"],
-                    range=["#EF4444", "#FACC15", "#16a34a"],
-                ),
-                legend=None,
-            ),
-            order="order:Q",
-        )
-    )
-    marker = (
-        alt.Chart(pd.DataFrame([{"x": prob}]))
-        .mark_rule(color="#FF9800", strokeWidth=2)
-        .encode(x="x:Q")
-    )
-    chart = (bar + marker).properties(width="container", height=20)
-    st.altair_chart(chart, use_container_width=True)
-
-    cols = st.columns([33, 33, 34])
-    cols[0].caption("reject")
-    cols[1].caption("borderline")
-    cols[2].caption("auto")
+    return MatchInsights(what_matched=what[:3], how_score_built=how[:3])
 
 
 # ── Relevance decomposition ──────────────────────────────────────────────────
@@ -438,7 +430,7 @@ def _decompose_relevance(tender: dict, catalog: dict, match: dict) -> dict[str, 
     ВАЖНО: при изменении формулы в src/splink_config.py::calculate_relevance
     нужно синхронно обновить:
       1. Эту функцию
-      2. Caption-форматы в легенде блока 5 в этом же файле (формулы '× 40%' и т.д.)
+      2. Caption-форматы в легенде блока 4 в этом же файле (формулы '× 40%' и т.д.)
     Иначе цифры в дашборде разойдутся с реальным relevance.
     """
     # Match quality
@@ -480,7 +472,7 @@ def _decompose_relevance(tender: dict, catalog: dict, match: dict) -> dict[str, 
     }
 
 
-# ── Block 1: match card ───────────────────────────────────────────────────────
+# ── Блок 1: match card ───────────────────────────────────────────────────────
 
 def _render_match_card(tender_row: dict, catalog_row: dict, best_match: dict) -> None:
     with st.container(border=True):
@@ -610,7 +602,7 @@ except (ValueError, TypeError):
 
 st.caption(caption_text)
 
-# Предвычисляем данные для блоков 2-3
+# Предвычисляем данные для блока 2
 prob_pct      = int(float(best_match.get("match_probability", 0)) * 100)
 radar_axes    = _compute_radar_axes(tender_id, tender_row.get("name", ""), best_match["catalog_id"])
 contributions = _decompose_score(tender_id, tender_row.get("name", ""), best_match["catalog_id"])
@@ -618,39 +610,35 @@ contributions = _decompose_score(tender_id, tender_row.get("name", ""), best_mat
 # ── Блок 1: карточка матча ────────────────────────────────────────────────────
 _render_match_card(tender_row, catalog_row, best_match)
 
-# ── Блок 2: радар + insights ──────────────────────────────────────────────────
+# ── Блок 2: Анализ матча (радар + donut + insights) ───────────────────────────
 with st.container(border=True):
-    st.markdown("#### :primary[:material/track_changes:] Что совпало в товаре")
-    chart_col, insights_col = st.columns([2, 1])
+    st.markdown("#### :primary[:material/analytics:] Анализ матча")
+    radar_col, donut_col, insights_col = st.columns([1.2, 1.2, 1])
 
-    with chart_col:
+    with radar_col:
+        st.markdown("**Что совпало в товаре**")
         radar_fig = _build_radar_chart(radar_axes)
         st.plotly_chart(radar_fig, use_container_width=True, config={"displayModeBar": False})
 
-    with insights_col:
-        st.caption("KEY INSIGHTS")
-        for line in _get_radar_insights(radar_axes, catalog_row):
-            st.markdown(line)
-
-# ── Блок 3: waterfall + insights + зональная шкала ───────────────────────────
-with st.container(border=True):
-    st.markdown(f"#### :primary[:material/stairs:] Из чего сложилась уверенность {prob_pct}%")
-    chart_col, insights_col = st.columns([2, 1])
-
-    with chart_col:
-        wf_fig = _build_waterfall_chart(contributions, best_match)
-        st.plotly_chart(wf_fig, use_container_width=True, config={"displayModeBar": False})
+    with donut_col:
+        st.markdown(f"**Из чего сложилась уверенность {prob_pct}%**")
+        donut_fig = _build_donut_chart(contributions, best_match)
+        st.plotly_chart(donut_fig, use_container_width=True, config={"displayModeBar": False})
 
     with insights_col:
-        st.caption("KEY INSIGHTS")
-        for line in _get_waterfall_insights(contributions, best_match):
+        insights = _get_match_insights(radar_axes, contributions, catalog_row, best_match)
+
+        st.markdown(":primary[:material/lightbulb:] **KEY INSIGHTS**")
+
+        st.markdown(":primary[**Что совпало в товаре**]")
+        for line in insights.what_matched:
             st.markdown(line)
 
-        st.divider()
-        st.caption("Зона уверенности")
-        _render_zone_indicator(best_match)
+        st.markdown(":primary[**Из чего сложилась уверенность**]")
+        for line in insights.how_score_built:
+            st.markdown(line)
 
-# ── Блок 4: LLM-плейсхолдер (только borderline) ──────────────────────────────
+# ── Блок 3: LLM-плейсхолдер (только borderline) ──────────────────────────────
 if best_match.get("decision") == "borderline":
     with st.container(border=True):
         st.markdown("#### :primary[:material/auto_awesome:] Заключение AI-эксперта")
@@ -672,7 +660,7 @@ if best_match.get("decision") == "borderline":
                 help="Активируется в Gate 8 — LLM-judge",
             )
 
-# ── Блок 5: relevance breakdown ───────────────────────────────────────────────
+# ── Блок 4: relevance breakdown ───────────────────────────────────────────────
 relevance = float(best_match.get("relevance", 0))
 comp = _decompose_relevance(tender_row, catalog_row, best_match)
 
@@ -966,7 +954,7 @@ def _render_form(
         _render_ask_form(tender_row, catalog_row, best_match, notif_key, form_key)
 
 
-# ── Блок 6: action panel ──────────────────────────────────────────────────────
+# ── Блок 5: action panel ──────────────────────────────────────────────────────
 notif_key = f"notif_{tender_id}"
 form_key = f"form_{tender_id}"
 

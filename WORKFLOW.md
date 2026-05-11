@@ -29,7 +29,7 @@ Gate 4   [✅ PASSED]      Pipeline cache + dashboard foundation
 Gate 5   [✅ PASSED]  Dashboard pages — Мониторинг (3 стр)
       5.1 ✅ PASSED — pages/overview.py (KPI + 3 chart блока)
       5.2 ✅ PASSED — pages/tender_feed.py (фильтры + таблица 9 колонок)
-      5.3 ✅ PASSED — pages/matching.py (4 раунда; action panel + Plotly radar/waterfall)
+      5.3 ✅ PASSED — pages/matching.py (4 раунда; action panel + Plotly radar/donut)
 Gate 6   [⬜ TODO]   Dashboard pages — Данные + Аналитика (3 стр)
 Gate 7   [⬜ TODO]   Dashboard pages — Система (3 стр)
       — Deferred: Telegram preview в action panel (интеграция с реальным Bot API)

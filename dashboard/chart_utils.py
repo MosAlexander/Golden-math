@@ -5,7 +5,8 @@ from __future__ import annotations
 import altair as alt
 
 # ── UI ──────────────────────────────────────────
-PRIMARY_COLOR    = '#FF9800'
+PRIMARY_COLOR      = '#FF9800'
+PRIMARY_COLOR_FILL = 'rgba(255, 152, 0, 0.18)'  # PRIMARY_COLOR с прозрачностью для заливок
 
 # ── Match decisions ─────────────────────────────
 COLOR_AUTO       = '#16a34a'
@@ -34,6 +35,13 @@ COLOR_RELEVANCE_DEADLINE = '#F59E0B'
 # ── Palettes ────────────────────────────────────
 RAINBOW_PALETTE = ['#8B5CF6', '#3B82F6', '#10B981', '#FACC15', '#F59E0B', '#EF4444']
 COMPARE_PALETTE = ['#8B5CF6', '#F59E0B']
+
+# ── Donut ramps по decision ──────────────────────────────────────────────────
+DONUT_PALETTES = {
+    "borderline": ["#FACC15", "#FBD850", "#FCE285", "#FDEDB8"],
+    "auto":       ["#16A34A", "#22C55E", "#4ADE80", "#86EFAC"],
+    "reject":     ["#EF4444", "#F87171", "#FCA5A5", "#FECACA"],
+}
 
 # ── Sort orders ─────────────────────────────────
 DECISION_ORDER = ["auto", "borderline", "reject"]
