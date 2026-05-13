@@ -39,6 +39,10 @@ Gate 7   [⬜ TODO]   Dashboard pages — Система (3 стр)
         и caption-форматы в легенде блока 4 (формулы '× 40%' и т.д.)
 Gate 8   [⬜ TODO]   Integration: LLM-judge + Telegram alerts
       — Deferred: реальная отправка уведомлений из action panel → Telegram
+      — Deferred: колонка «Спрос» в Каталоге SKU — кол-во тендеров на позицию
+        за последние 30 дней. Требует: ежедневный запуск пайплайна (TenderGuru),
+        хранение per-SKU попаданий в pipeline_runs.log, агрегация по дате.
+        До Gate 8 показывать бессмысленно — данные только из seed-батча (14 тендеров).
 Gate 9   [⬜ TODO]   Splink switchover + threshold recalibration
       — Deferred: radar axes из реального Splink feature importance (сейчас mock)
 ```
