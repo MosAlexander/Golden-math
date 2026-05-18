@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+from datetime import date, timedelta
 from pathlib import Path
 
 import pandas as pd
@@ -53,6 +54,30 @@ def load_catalog() -> pd.DataFrame:
 def load_tenders() -> pd.DataFrame:
     """Тендеры с результатами matching (best_match_id, best_match_score)."""
     return pd.DataFrame(_load_raw()["tenders"])
+
+
+@st.cache_data
+def load_history(days: int) -> pd.DataFrame:
+    """История запусков за последние N дней из data/runs/*.json.
+
+    Стабильный API: при миграции на DuckDB-file меняется только тело,
+    страницы дашборда остаются прежними. Fallback на последний запуск
+    если папка runs/ пуста или не существует.
+
+    Args:
+        days: количество последних дней (5, 10, 14, 30).
+    """
+    runs_dir = Path("data/runs")
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    files = sorted(runs_dir.glob("*.json")) if runs_dir.exists() else []
+    relevant = [f for f in files if f.stem >= cutoff]
+    if not relevant:
+        return load_pipeline_results()
+    frames = [
+        pd.DataFrame(json.loads(f.read_text(encoding="utf-8"))["results"])
+        for f in relevant
+    ]
+    return pd.concat(frames, ignore_index=True)
 
 
 def get_summary_stats(df: pd.DataFrame) -> dict:

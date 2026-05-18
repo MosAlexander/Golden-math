@@ -17,14 +17,13 @@ Radal Микроэлектроника (ООО Радал, ИНН 2634101203, С
 ## Структура проекта
 - `src/` — весь production-код (matching pipeline)
 - `tests/` — pytest тесты, запуск: `pytest tests/ -v`
-- `dashboard/` — Streamlit UI (9 страниц, точка входа: `streamlit_app.py`)
+- `dashboard/` — Streamlit UI (8 страниц, точка входа: `streamlit_app.py`)
 - `dashboard/chart_utils.py` — цвета и палитры, импортировать оттуда
 - `docs/` — архитектура, решения, бизнес-правила
 
-## Dashboard: 9 страниц в 4 группах
+## Dashboard: 8 страниц в 3 группах
 📊 Мониторинг: Обзор, Лента тендеров, Матчинг
-📦 Данные: Каталог SKU, Win/Loss
-📈 Аналитика: Drill Down (вход только из Win/Loss)
+📦 Данные: Каталог SKU, Разбор тендеров
 ⚙️ Система: Настройки, Подключения, FAQ
 
 ## Архитектура: 7 слоёв

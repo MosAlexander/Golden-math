@@ -30,7 +30,7 @@ Gate 5   [✅ PASSED]  Dashboard pages — Мониторинг (3 стр)
       5.1 ✅ PASSED — pages/overview.py (KPI + 3 chart блока)
       5.2 ✅ PASSED — pages/tender_feed.py (фильтры + таблица 9 колонок)
       5.3 ✅ PASSED — pages/matching.py (4 раунда; action panel + Plotly radar/donut)
-Gate 6   [⬜ TODO]   Dashboard pages — Данные + Аналитика (3 стр)
+Gate 6   [✅ PASSED]  Dashboard pages — Данные (2 стр), Аналитика удалена
 Gate 7   [⬜ TODO]   Dashboard pages — Система (3 стр)
       — Deferred: Telegram preview в action panel (интеграция с реальным Bot API)
       — Deferred: i18n шаблонов уведомлений (участвовать/пропустить/запросить)
@@ -47,7 +47,7 @@ Gate 9   [⬜ TODO]   Splink switchover + threshold recalibration
       — Deferred: radar axes из реального Splink feature importance (сейчас mock)
 ```
 
-**Следующее действие:** Gate 6 — `dashboard/pages/` Данные (Каталог SKU, Win/Loss) + Аналитика (Drill Down).
+**Следующее действие:** Gate 7 — `dashboard/pages/` Система (Настройки, Подключения, FAQ).
 
 ---
 
@@ -894,13 +894,23 @@ python -m streamlit run dashboard/streamlit_app.py
 
 ---
 
-## Gate 6 — Dashboard Pages: Данные + Аналитика ⬜ TODO
+## Gate 6 — Dashboard Pages: Данные ✅ PASSED
 
-| Файл | Содержание |
-|------|-----------|
-| `pages/catalog.py` | Таблица 15 SKU, фильтры category/MFR/in_stock |
-| `pages/win_loss.py` | Заглушка с инструкцией по подключению TenderGuru |
-| `pages/drill_down.py` | Redirect на win_loss если нет session_state |
+| Файл | Содержание | Статус |
+|------|-----------|--------|
+| `pages/catalog.py` | Таблица 15 SKU, фильтры category/MFR/in_stock | ✅ Gate 6.1 |
+| `pages/win_loss.py` | «Разбор тендеров» — 4 блока (KPI, Sankey, Категории спроса, Топ SKU) | ✅ Gate 6.2 |
+| `pages/drill_down.py` | **Удалён** — переосмысление концепции, функционал поглощён win_loss.py | ✅ Gate 6.2 |
+
+**Изменения навигации (Gate 6.2):**
+- `streamlit_app.py`: Win/Loss → «Разбор тендеров», `icon=:material/analytics:`, группа «📈 Аналитика» удалена
+- `data/runs/YYYY-MM-DD.json`: добавлена запись в `demo_pipeline.py`
+- `load_history(days: int)`: добавлена в `data_utils.py`
+- Архитектура хранения истории зафиксирована в `docs/DECISIONS.md §7`
+
+**Deferred (Gate 6.2 → Gate 8):**
+- Колонка «Спрос» в Каталоге SKU (кол-во тендеров на позицию за 30 дней)
+- Временной фильтр в «Разбор тендеров» (нет смысла до ежедневных запусков TenderGuru)
 
 ---
 

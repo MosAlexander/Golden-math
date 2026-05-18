@@ -7,6 +7,7 @@ import altair as alt
 # ── UI ──────────────────────────────────────────
 PRIMARY_COLOR      = '#FF9800'
 PRIMARY_COLOR_FILL = 'rgba(255, 152, 0, 0.18)'  # PRIMARY_COLOR с прозрачностью для заливок
+COLOR_CHART_TEXT   = '#E5E7EB'                   # светлый текст на тёмном фоне (Plotly/Altair)
 
 # ── Match decisions ─────────────────────────────
 COLOR_AUTO       = '#16a34a'
@@ -35,6 +36,14 @@ COLOR_RELEVANCE_DEADLINE = '#F59E0B'
 # ── Palettes ────────────────────────────────────
 RAINBOW_PALETTE = ['#8B5CF6', '#3B82F6', '#10B981', '#FACC15', '#F59E0B', '#EF4444']
 COMPARE_PALETTE = ['#8B5CF6', '#F59E0B']
+
+# ── Семантические цвета для bar-графиков (категориальное сравнение метрик) ──
+# Оба hex уже физически присутствуют в RAINBOW_PALETTE — семантические алиасы.
+COLOR_BAR_MONEY = '#8B5CF6'   # фиолетовый — деньги, НМЦ
+COLOR_BAR_COUNT = '#F59E0B'   # оранжевый — штуки, количество
+
+# ── Sankey-градиент НМЦ-узлов (порядок сверху вниз: 2–30М₽ → < 100К₽) ──────
+NMC_SANKEY_GRADIENT = ["#7C3AED", "#A78BFA", "#C4B5FD", "#EDE9FE"]
 
 # ── Donut ramps по decision ──────────────────────────────────────────────────
 DONUT_PALETTES = {

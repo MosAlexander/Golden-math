@@ -379,6 +379,13 @@ def main():
         encoding="utf-8",
     )
 
+    run_date = datetime.now().strftime("%Y-%m-%d")
+    Path("data/runs").mkdir(exist_ok=True)
+    Path(f"data/runs/{run_date}.json").write_text(
+        json.dumps(cache_data, ensure_ascii=False, indent=2, default=str),
+        encoding="utf-8",
+    )
+
     with open("docs/pipeline_runs.log", "a", encoding="utf-8") as f:
         f.write(
             f"{result['timestamp']} | "

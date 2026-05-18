@@ -23,11 +23,8 @@ pages = {
         st.Page("pages/matching.py",    title="Матчинг",        icon=":material/compare_arrows:"),
     ],
     "📦 Данные": [
-        st.Page("pages/catalog.py",     title="Каталог SKU",    icon=":material/inventory:"),
-        st.Page("pages/win_loss.py",    title="Win/Loss",       icon=":material/emoji_events:"),
-    ],
-    "📈 Аналитика": [
-        st.Page("pages/drill_down.py",  title="Drill Down",     icon=":material/query_stats:"),
+        st.Page("pages/catalog.py",     title="Каталог SKU",       icon=":material/inventory:"),
+        st.Page("pages/win_loss.py",    title="Разбор тендеров",   icon=":material/analytics:"),
     ],
     "⚙️ Система": [
         st.Page("pages/settings.py",    title="Настройки",      icon=":material/settings:"),
