@@ -25,6 +25,19 @@ from dashboard.chart_utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+from src.splink_config import (
+    WEIGHT_PN_EXACT,
+    WEIGHT_PN_PARTIAL,
+    WEIGHT_MFR,
+    WEIGHT_PN_MFR_BONUS,
+    WEIGHT_CATEGORY,
+    WEIGHT_VOLTAGE_EXACT,
+    WEIGHT_VOLTAGE_CLOSE,
+    WEIGHT_CURRENT_EXACT,
+    WEIGHT_CURRENT_CLOSE,
+    WEIGHT_DESCRIPTION,
+)
 from dashboard.data_utils import (
     get_run_metadata,
     load_catalog,
@@ -178,9 +191,9 @@ def _decompose_score(
     c_pn = (cat.get("part_number") or "").upper().replace(" ", "")
     if t_pn and c_pn:
         if t_pn == c_pn:
-            v = 0.60
+            v = WEIGHT_PN_EXACT
         elif t_pn in c_pn or c_pn in t_pn:
-            v = 0.40
+            v = WEIGHT_PN_PARTIAL
         else:
             v = 0.0
     else:
@@ -191,19 +204,19 @@ def _decompose_score(
     # 2. MFR (20%)
     t_mfr = (rec.manufacturer or "").lower()
     c_mfr = (cat.get("manufacturer") or "").lower()
-    v = 0.20 if t_mfr and c_mfr and t_mfr == c_mfr else 0.0
+    v = WEIGHT_MFR if t_mfr and c_mfr and t_mfr == c_mfr else 0.0
     cumulative += v
     contributions.append({"step": "MFR", "value": v, "cumulative": cumulative})
 
     # 3. PN+MFR bonus (5%) — архитектурный контракт из DECISIONS.md
     exact_pn = t_pn and c_pn and t_pn == c_pn
     exact_mfr = t_mfr and c_mfr and t_mfr == c_mfr
-    v = 0.05 if (exact_pn and exact_mfr) else 0.0
+    v = WEIGHT_PN_MFR_BONUS if (exact_pn and exact_mfr) else 0.0
     cumulative += v
     contributions.append({"step": "Бонус", "value": v, "cumulative": cumulative})
 
     # 4. Категория (8%)
-    v = 0.08 if rec.category and rec.category == cat.get("category", "") else 0.0
+    v = WEIGHT_CATEGORY if rec.category and rec.category == cat.get("category", "") else 0.0
     cumulative += v
     contributions.append({"step": "Кат.", "value": v, "cumulative": cumulative})
 
@@ -212,9 +225,9 @@ def _decompose_score(
     c_v = cat_params.get("voltage_v")
     if t_v and c_v:
         if t_v == c_v:
-            v = 0.04
+            v = WEIGHT_VOLTAGE_EXACT
         elif abs(t_v - c_v) / max(t_v, c_v, 1) < 0.1:
-            v = 0.02
+            v = WEIGHT_VOLTAGE_CLOSE
         else:
             v = 0.0
     else:
@@ -227,9 +240,9 @@ def _decompose_score(
     c_a = cat_params.get("current_a")
     if t_a and c_a:
         if t_a == c_a:
-            v = 0.04
+            v = WEIGHT_CURRENT_EXACT
         elif abs(t_a - c_a) / max(t_a, c_a, 1) < 0.15:
-            v = 0.02
+            v = WEIGHT_CURRENT_CLOSE
         else:
             v = 0.0
     else:
@@ -245,7 +258,7 @@ def _decompose_score(
         c_words = set(c_name.split())
         if t_words and c_words:
             overlap = len(t_words & c_words) / max(len(t_words), len(c_words))
-            v = 0.04 * overlap
+            v = WEIGHT_DESCRIPTION * overlap
         else:
             v = 0.0
     else:

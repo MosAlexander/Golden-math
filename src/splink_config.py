@@ -299,6 +299,21 @@ THRESHOLD_BORDERLINE_HIGH = 0.92  # < 0.92 и ≥ 0.75 → LLM-judge
 THRESHOLD_BORDERLINE_LOW = 0.75
 THRESHOLD_REJECT = 0.75         # < 0.75 → отброс (не матч)
 
+# ── Score weights ──────────────────────────────────────────────────────────────
+# Веса факторов в _calculate_score(). Сумма базовых весов = 100%,
+# плюс PN+MFR бонус 5% дают максимум 105% — это намеренно:
+# награда за полное совпадение PN и производителя одновременно.
+WEIGHT_PN_EXACT       = 0.60   # PN полностью совпадает
+WEIGHT_PN_PARTIAL     = 0.40   # один PN — подстрока другого
+WEIGHT_MFR            = 0.20   # производитель совпал
+WEIGHT_PN_MFR_BONUS   = 0.05   # бонус за PN+MFR одновременно
+WEIGHT_CATEGORY       = 0.08   # категория совпала
+WEIGHT_VOLTAGE_EXACT  = 0.04   # напряжение точно совпало
+WEIGHT_VOLTAGE_CLOSE  = 0.02   # напряжение в пределах 10%
+WEIGHT_CURRENT_EXACT  = 0.04   # ток точно совпал
+WEIGHT_CURRENT_CLOSE  = 0.02   # ток в пределах 15%
+WEIGHT_DESCRIPTION    = 0.04   # коэф. при overlap слов в описании
+
 
 def classify_match(probability: float) -> str:
     """
@@ -436,15 +451,15 @@ def _calculate_score(tender: dict, catalog: dict) -> float:
     c_pn = catalog.get("part_number", "")
     if t_pn and c_pn:
         if t_pn == c_pn:
-            score += 0.60
+            score += WEIGHT_PN_EXACT
         elif t_pn in c_pn or c_pn in t_pn:
-            score += 0.40
+            score += WEIGHT_PN_PARTIAL
 
     # Manufacturer (20%)
     t_mfr = tender.get("manufacturer", "")
     c_mfr = catalog.get("manufacturer", "")
     if t_mfr and c_mfr and t_mfr == c_mfr:
-        score += 0.20
+        score += WEIGHT_MFR
 
     # PN+MFR sufficiency bonus (RULES.md §1: точный PN+MFR → auto)
     # Архитектурный контракт: при точном совпадении part number и
@@ -453,30 +468,30 @@ def _calculate_score(tender: dict, catalog: dict) -> float:
     # Без этого Сценарий A с короткими тендерными текстами теряет
     # auto-классификацию из-за отсутствия voltage/current в тексте.
     if t_pn and c_pn and t_pn == c_pn and t_mfr and c_mfr and t_mfr == c_mfr:
-        score += 0.05
+        score += WEIGHT_PN_MFR_BONUS
 
     # Category (8%)
     if tender.get("category") and catalog.get("category"):
         if tender["category"] == catalog["category"]:
-            score += 0.08
+            score += WEIGHT_CATEGORY
 
     # Voltage (4%)
     t_v = tender.get("voltage_v")
     c_v = catalog.get("voltage_v")
     if t_v and c_v:
         if t_v == c_v:
-            score += 0.04
+            score += WEIGHT_VOLTAGE_EXACT
         elif abs(t_v - c_v) / max(t_v, c_v, 1) < 0.1:
-            score += 0.02
+            score += WEIGHT_VOLTAGE_CLOSE
 
     # Current (4%)
     t_a = tender.get("current_a")
     c_a = catalog.get("current_a")
     if t_a and c_a:
         if t_a == c_a:
-            score += 0.04
+            score += WEIGHT_CURRENT_EXACT
         elif abs(t_a - c_a) / max(t_a, c_a, 1) < 0.15:
-            score += 0.02
+            score += WEIGHT_CURRENT_CLOSE
 
     # Name fuzzy (4%) — simplified JW
     t_name = tender.get("name_clean", "")
@@ -487,7 +502,7 @@ def _calculate_score(tender: dict, catalog: dict) -> float:
         c_words = set(c_name.split())
         if t_words and c_words:
             overlap = len(t_words & c_words) / max(len(t_words), len(c_words))
-            score += 0.04 * overlap
+            score += WEIGHT_DESCRIPTION * overlap
 
     return min(score, 1.0)
 

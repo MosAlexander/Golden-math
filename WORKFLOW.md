@@ -31,7 +31,7 @@ Gate 5   [✅ PASSED]  Dashboard pages — Мониторинг (3 стр)
       5.2 ✅ PASSED — pages/tender_feed.py (фильтры + таблица 9 колонок)
       5.3 ✅ PASSED — pages/matching.py (4 раунда; action panel + Plotly radar/donut)
 Gate 6   [✅ PASSED]  Dashboard pages — Данные (2 стр), Аналитика удалена
-Gate 7   [⬜ TODO]   Dashboard pages — Система (3 стр)
+Gate 7   [✅ PASSED]  Dashboard pages — Система (3 стр)
       — Deferred: Telegram preview в action panel (интеграция с реальным Bot API)
       — Deferred: i18n шаблонов уведомлений (участвовать/пропустить/запросить)
       — Deferred: при изменении формулы calculate_relevance в src/splink_config.py
@@ -47,7 +47,7 @@ Gate 9   [⬜ TODO]   Splink switchover + threshold recalibration
       — Deferred: radar axes из реального Splink feature importance (сейчас mock)
 ```
 
-**Следующее действие:** Gate 7 — `dashboard/pages/` Система (Настройки, Подключения, FAQ).
+**Следующее действие:** Gate 8 — TenderGuru integration + Action panel notifications
 
 ---
 
@@ -62,6 +62,21 @@ Gate 9   [⬜ TODO]   Splink switchover + threshold recalibration
 6. **Не начинай Gate N+1** пока не пройден Gate N.
 7. **Тесты запускать через** `python -m pytest tests/ -v` — не `pytest tests/`.
    Без `-m` импорты `from src.` падают (нет `conftest.py`, это норма).
+
+---
+
+## Технические особенности окружения
+
+### Known limitations
+
+- **Streamlit file-watcher не следит за транзитивными импортами.** Streamlit
+  отслеживает только файлы страниц (`dashboard/pages/*.py`). Если ты правишь
+  `src/splink_config.py` или другие модули, которые импортируются страницами,
+  hot-reload в браузере не сработает — Python отдаст модуль из `sys.modules`
+  со старым значением. **Обязательно делай жёсткий перезапуск процесса**
+  (`Ctrl+C` в терминале + повторный `python -m streamlit run
+  dashboard/streamlit_app.py`). Это особенно важно при перекалибровке порогов
+  и весов в Gate 9.
 
 ---
 
@@ -914,13 +929,82 @@ python -m streamlit run dashboard/streamlit_app.py
 
 ---
 
-## Gate 7 — Dashboard Pages: Система ⬜ TODO
+## Gate 7 — Dashboard Pages: Система — PASSED
 
-| Файл | Содержание |
-|------|-----------|
-| `pages/settings.py` | Пороги 0.75/0.92 — display only (MVP) |
-| `pages/connections.py` | Статус TenderGuru/B2B-Center/Splink + инструкции |
-| `pages/faq.py` | Сценарии A/B/C, пороги, relevance formula |
+### Что сделано
+
+**Часть 1 — Рефакторинг score weights**
+- src/splink_config.py — вынесены 10 module-level констант WEIGHT_*
+- dashboard/pages/matching.py — _decompose_score() теперь импортирует
+  константы вместо литералов
+- Числовая инвариантность подтверждена: pytest 293 passed, accuracy 9/14
+
+**Часть 2 — dashboard/pages/settings.py (display-only)**
+- Блок 1: Пороги принятия решения (3 disabled-слайдера, значения из импорта
+  THRESHOLD_AUTO_MATCH / THRESHOLD_BORDERLINE_LOW)
+- Блок 2: Веса факторов в score (DataFrame + ProgressColumn, значения из
+  импортированных WEIGHT_* констант)
+- Блок 3: Формула relevance (altair horizontal bar с цветами match/stock/
+  margin/deadline из chart_utils)
+- Блок 4: Уведомления — disabled stub с pill-бейджем «Gate 8»
+- Блок 5: Расписание пайплайна — disabled stub с pill-бейджем «Gate 8»
+
+**Часть 3 — dashboard/pages/connections.py**
+- Блок 1: Источники тендеров — TenderGuru API, статус «Отключено» (pill)
+- Блок 2: Каталог Radal — Seed-каталог, статус «Заглушка» (pill).
+  Формулировки нейтральные («формат уточняется»), без упоминания 1C/CSV/SQL
+- Блок 3: Движок матчинга — Rule-based (активен) + Splink (не активен).
+  Реальная проверка `import splink` при загрузке страницы
+- Блок 4: LLM-судья — disabled stub с pill-бейджем «Gate 8», провайдер
+  GigaChat Max / YandexGPT, таймаут 5 сек, fallback ручная очередь
+- Блок 5: Настройка каналов — таблица Telegram/Email/Webhook с параметрами
+
+**Часть 4 — dashboard/pages/faq.py**
+- 4 группы, 12 вопросов:
+  - Как работает матчинг (3 вопроса про score, пороги, формулу)
+  - Как читать графики на странице Матчинг (радар, donut, «На проверку»)
+  - Как тендеры сортируются в Ленте (relevance, разница score vs relevance)
+  - Подключения и развитие системы (TenderGuru, Splink, каталог, roadmap)
+- Тон менеджерский, без жаргона. Числа только стабильные (пороги, веса)
+- В вопросе про roadmap слово «Gate» убрано, заменено на «ближайшие
+  обновления»
+
+### Дизайн-паттерны, закреплённые в Gate 7
+
+- **Pill-бейджи** через `:<color>-background[:<color>[text]]` — нативные
+  coloured pills Streamlit 1.55. Использованы для:
+  - роадмап-маркеров «Gate 8» (orange/primary)
+  - статусов «Отключено» (red), «Заглушка» (orange/yellow), «Активен»
+    (green), «Не активен» (gray)
+- **Line-break формат** в карточках вместо буллетов: `**Bold:** text  \n`
+  (два пробела + \n)
+- **Display-only страницы** с disabled-виджетами — слайдеры/чекбоксы/
+  selectbox реальные, просто `disabled=True`. UI «будущей» функциональности
+  виден, но недоступен
+
+### Регрессия после Gate 7
+
+- pytest 293 passed, 1 xfailed
+- demo_pipeline accuracy 9/14
+- ast.parse по трём новым страницам — пусто (pyflakes не установлен)
+- Все 7 страниц дашборда открываются без exception
+
+### Что отложено / Deferred items (закрыто в Gate 7)
+
+- ~~Веса WEIGHT_* как константы~~ — сделано в Части 1
+- ~~Pill-бейджи для статусных индикаторов~~ — сделано в Части 3 fix-промом
+
+### Известная особенность Gate 7 → Gate 9
+
+При перекалибровке порогов и весов в Gate 9 нужно помнить:
+- Файл-вотчер Streamlit не отслеживает src/splink_config.py — после правки
+  обязателен жёсткий перезапуск процесса (см. Known limitations выше)
+- Веса relevance (40/25/20/15) пока остались литералами в
+  src/splink_config.py::calculate_relevance(). В Gate 9 их можно будет
+  тоже вынести в константы — но только после калибровки, потому что
+  формула может измениться. До этого Settings — Блок 3 использует
+  локальный кортеж _RELEVANCE_WEIGHTS в settings.py, синхронизированный
+  с calculate_relevance() через явный комментарий-маркер
 
 ---
 
