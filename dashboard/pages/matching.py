@@ -44,6 +44,8 @@ from dashboard.data_utils import (
     load_pipeline_results,
     load_tenders,
 )
+from src.telegram_alerts import notify, get_token
+from src.channels_config import load_config, enabled_channels, is_event_enabled
 
 
 # ── Format helper ─────────────────────────────────────────────────────────────
@@ -746,6 +748,34 @@ def _render_notification_preview(tender_row: dict, catalog_row: dict) -> None:
 
 
 
+def _dispatch_notification(event: str, tender_row: dict, catalog_row: dict, decision: dict) -> dict:
+    """Отправляет уведомление через notify(), если событие включено.
+
+    Всегда возвращает dict с ключом mode:
+    "skipped_by_settings" — событие выключено в «Когда отправлять»,
+    "dry_run" — токен не настроен,
+    "live" — реальная отправка.
+    Никогда не бросает — notify сам оборачивает в try/except на каждый канал.
+    """
+    config = load_config()
+    if not is_event_enabled(config, event):
+        return {"mode": "skipped_by_settings", "sent": [], "results": []}
+    channels = enabled_channels(config)
+    token = get_token()
+    tender = {
+        "id": tender_row.get("id"),
+        "region": tender_row.get("region"),
+        "price_max": tender_row.get("price_max"),
+        "deadline_days": tender_row.get("deadline_days"),
+    }
+    catalog = {
+        "part_number": catalog_row.get("part_number"),
+        "name": catalog_row.get("name") or catalog_row.get("description"),
+    }
+    with st.spinner("Отправка уведомлений…"):
+        return notify(event, channels, tender, catalog, decision, token=token)
+
+
 def _render_default_buttons(decision: str, form_key: str) -> None:
     """Кнопки по умолчанию: Участвовать / Пропустить / Запросить мнение."""
     btn_cols = st.columns(3)
@@ -798,10 +828,12 @@ def _render_participate_form(
             type="primary",
             use_container_width=True,
         ):
+            delivery = _dispatch_notification("participate", tender_row, catalog_row, {"comment": comment})
             st.session_state[notif_key] = {
                 "type": "participate",
                 "comment": comment,
                 "ts": pd.Timestamp.now().strftime("%d.%m.%Y %H:%M"),
+                "delivery": delivery,
             }
             del st.session_state[form_key]
             st.toast("Уведомление об участии отправлено!", icon=":material/check_circle:")
@@ -816,7 +848,7 @@ def _render_participate_form(
             st.rerun()
 
 
-def _render_skip_form(notif_key: str, form_key: str) -> None:
+def _render_skip_form(tender_row: dict, catalog_row: dict, notif_key: str, form_key: str) -> None:
     """Форма «Пропустить»."""
     st.markdown("**Причина пропуска**")
     reason = st.pills(
@@ -839,11 +871,13 @@ def _render_skip_form(notif_key: str, form_key: str) -> None:
             use_container_width=True,
             disabled=reason is None,
         ):
+            delivery = _dispatch_notification("skip", tender_row, catalog_row, {"reason": reason, "note": note})
             st.session_state[notif_key] = {
                 "type": "skip",
                 "reason": reason,
                 "note": note,
                 "ts": pd.Timestamp.now().strftime("%d.%m.%Y %H:%M"),
+                "delivery": delivery,
             }
             del st.session_state[form_key]
             st.toast("Тендер помечен как пропущенный.", icon=":material/cancel:")
@@ -882,11 +916,13 @@ def _render_ask_form(
             use_container_width=True,
             disabled=not question.strip() if question else True,
         ):
+            delivery = _dispatch_notification("ask", tender_row, catalog_row, {"question": question, "score": best_match.get("match_probability", 0.0)})
             st.session_state[notif_key] = {
                 "type": "ask",
                 "question": question,
                 "ts": pd.Timestamp.now().strftime("%d.%m.%Y %H:%M"),
-                "score": best_match.get("score", 0.0),
+                "score": best_match.get("match_probability", 0.0),
+                "delivery": delivery,
             }
             del st.session_state[form_key]
             st.toast("Запрос мнения отправлен!", icon=":material/help:")
@@ -943,6 +979,23 @@ def _render_sent_state(notif: dict, notif_key: str, form_key: str) -> None:
                 st.session_state[form_key] = "ask"
                 st.rerun()
 
+    delivery = notif.get("delivery")
+    if delivery is not None:
+        mode = delivery.get("mode")
+        if mode == "dry_run":
+            st.info("Уведомление сформировано (токен Telegram не настроен).")
+        elif mode == "skipped_by_settings":
+            st.info("Уведомление не отправлялось (отключено в «Когда отправлять»).")
+        else:
+            sent = delivery.get("sent", [])
+            failed = [r for r in delivery.get("results", []) if r.get("status") == "failed"]
+            if sent:
+                st.success("Отправлено: " + ", ".join(sent))
+            for r in failed:
+                st.warning(f"Не доставлено: {r.get('channel')} — {r.get('error', 'ошибка')}")
+            if not sent and not failed:
+                st.info("Каналы получателей не настроены.")
+
 
 def _render_form(
     form_type: str,
@@ -962,7 +1015,7 @@ def _render_form(
     if form_type == "participate":
         _render_participate_form(tender_row, catalog_row, notif_key, form_key)
     elif form_type == "skip":
-        _render_skip_form(notif_key, form_key)
+        _render_skip_form(tender_row, catalog_row, notif_key, form_key)
     else:
         _render_ask_form(tender_row, catalog_row, best_match, notif_key, form_key)
 

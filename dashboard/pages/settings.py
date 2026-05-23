@@ -175,22 +175,7 @@ with st.container(border=True):
         "Deadline — близость дедлайна (срочные выше)."
     )
 
-# ── Блок 4: Уведомления (disabled-заглушка) ───────────────────────────────────
-
-with st.container(border=True):
-    head_col, badge_col = st.columns([5, 1])
-    with head_col:
-        st.markdown("#### :primary[:material/notifications:] Уведомления")
-        st.caption("Каналы рассылки авто-матчей")
-    with badge_col:
-        st.markdown(":primary-background[:primary[Gate 8]]")
-
-    st.checkbox("Telegram — @radal_bot", value=False, disabled=True, key="notif_tg")
-    st.checkbox("Email — ops@radal.ru",  value=False, disabled=True, key="notif_email")
-
-    st.caption("Уведомления будут доступны в Gate 8 после интеграции с Telegram Bot API.")
-
-# ── Блок 5: Расписание пайплайна (disabled-заглушка) ──────────────────────────
+# ── Блок 4: Расписание пайплайна (disabled-заглушка) ──────────────────────────
 
 with st.container(border=True):
     head_col2, badge_col2 = st.columns([5, 1])

@@ -84,3 +84,7 @@ goldenmatch-radal/
 - Ставрополь / Москва
 - radal.ru
 - Основной заказчик в тендерах: НПО «Центротех»
+
+## Telegram-уведомления
+
+Бот настраивается через раздел **Подключения → Telegram Bot API** в дашборде. Токен хранится в `.streamlit/secrets.toml` (не коммитится, шаблон — `secrets.toml.example`). Каналы получателей и события настраиваются через UI, хранятся в `data/channels.json`. Подробнее — [CLAUDE.md](CLAUDE.md).

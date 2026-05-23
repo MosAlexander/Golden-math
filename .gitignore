@@ -16,6 +16,9 @@ venv/
 env/
 .env
 
+# Streamlit secrets (токены — не коммитить)
+.streamlit/secrets.toml
+
 # IDE
 .vscode/
 .idea/
@@ -26,6 +29,7 @@ Thumbs.db
 
 # Project artifacts (создаются на лету)
 data/last_run.json
+data/channels.json
 docs/pipeline_runs.log
 
 # Temporary files (мусор после ручных проверок)

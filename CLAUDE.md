@@ -76,6 +76,14 @@ Radal Микроэлектроника (ООО Радал, ИНН 2634101203, С
 - `python -m src.demo_pipeline` — полный пайплайн
 - `python -m streamlit run dashboard/streamlit_app.py` — дашборд
 
+## Эксплуатация: Telegram-уведомления
+
+**Токен бота:** хранится в `.streamlit/secrets.toml`, ключ `TELEGRAM_BOT_TOKEN`. Файл в `.gitignore`, не коммитится. Шаблон — `.streamlit/secrets.toml.example`. Под Radal: заменить значение токена в `secrets.toml` на боевой токен бота Radal, перезапустить Streamlit (мост secrets→environ в `streamlit_app.py` подхватит при старте). Через UI токен не редактируется (read-only по соображениям безопасности).
+
+**Каналы получателей** (chat_id менеджеров/закупок): настраиваются через UI на странице **Подключения → Telegram Bot API** (добавить/удалить/вкл/выкл). Хранятся в `data/channels.json` (в `.gitignore`, своё на каждой инсталляции). Под Radal — настроить их каналы через UI на их машине, файл создастся при первом сохранении.
+
+**«Когда отправлять»** (participate/ask/skip) — тоже через UI, хранится там же.
+
 ## При работе с кодом
 - Всегда читай docs/RULES.md перед изменением matching-логики
 - Всегда читай docs/DECISIONS.md перед архитектурными решениями

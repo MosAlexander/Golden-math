@@ -5,6 +5,8 @@
 """
 from __future__ import annotations
 
+import os
+
 import streamlit as st
 
 # ПЕРВЫЙ вызов — до всего остального. Иначе Streamlit ругается.
@@ -14,6 +16,15 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+# Мост secrets→environ: если токен задан в .streamlit/secrets.toml,
+# но ещё не попал в os.environ — прокидываем его, чтобы src/telegram_alerts.py
+# мог читать через os.environ без зависимости от streamlit.
+try:
+    if "TELEGRAM_BOT_TOKEN" in st.secrets and "TELEGRAM_BOT_TOKEN" not in os.environ:
+        os.environ["TELEGRAM_BOT_TOKEN"] = st.secrets["TELEGRAM_BOT_TOKEN"]
+except Exception:
+    pass
 
 # Все страницы относительно dashboard/streamlit_app.py
 pages = {

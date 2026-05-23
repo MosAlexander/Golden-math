@@ -37,17 +37,26 @@ Gate 7   [✅ PASSED]  Dashboard pages — Система (3 стр)
       — Deferred: при изменении формулы calculate_relevance в src/splink_config.py
         синхронно обновить _decompose_relevance в dashboard/pages/matching.py
         и caption-форматы в легенде блока 4 (формулы '× 40%' и т.д.)
-Gate 8   [⬜ TODO]   Integration: LLM-judge + Telegram alerts
-      — Deferred: реальная отправка уведомлений из action panel → Telegram
-      — Deferred: колонка «Спрос» в Каталоге SKU — кол-во тендеров на позицию
-        за последние 30 дней. Требует: ежедневный запуск пайплайна (TenderGuru),
-        хранение per-SKU попаданий в pipeline_runs.log, агрегация по дате.
-        До Gate 8 показывать бессмысленно — данные только из seed-батча (14 тендеров).
+Gate 8   [🔄 IN PROGRESS]  Integration — разбит на 8.1 / 8.2 / 8.3
+      8.1 ✅ PASSED — Telegram alerts (HTTP via requests)
+            • src/telegram_alerts.py — движок (get_token/get_me/send_message/build_message/notify), dry-run при отсутствии токена, 31 тест
+            • src/channels_config.py — CRUD над data/channels.json (каналы + тумблеры событий), 43 теста
+            • dashboard/pages/connections.py — блок «Telegram Bot API» (токен read-only + getMe-тест, CRUD каналов, «Когда отправлять»)
+            • dashboard/pages/matching.py — реальная отправка из action panel (3 события: participate/skip/ask), статус доставки в _render_sent_state
+            • Инфра: мост secrets→environ в streamlit_app.py, .streamlit/secrets.toml(.example), data/channels.json в .gitignore, python-telegram-bot убран из requirements
+            • Удалён блок «Уведомления» из settings.py (дублировал настройку каналов)
+            • Живой тест пройден: доставка во все каналы, тумблеры событий и вкл/выкл каналов работают
+            • Deferred → Email-канал доставки (SMTP) — каркас не делали, отложен
+            • Deferred → notify синхронный (timeout 5с×каналов под st.spinner); при росте числа каналов или добавлении Email рассмотреть фоновую отправку
+      8.2 ⬜ TODO — LLM-judge (GigaChat/YandexGPT, только borderline 0.75–0.92, timeout 5с → manual queue)
+      8.3 ⬜ TODO — TenderGuru API integration
+            • Deferred: колонка «Спрос» в Каталоге SKU — кол-во тендеров на позицию за 30 дней.
+              Требует ежедневный запуск пайплайна (TenderGuru), хранение per-SKU попаданий, агрегацию по дате.
 Gate 9   [⬜ TODO]   Splink switchover + threshold recalibration
       — Deferred: radar axes из реального Splink feature importance (сейчас mock)
 ```
 
-**Следующее действие:** Gate 8 — TenderGuru integration + Action panel notifications
+**Следующее действие:** Gate 8.2 — LLM-judge (GigaChat/YandexGPT для borderline-зоны)
 
 ---
 
@@ -85,7 +94,7 @@ Gate 9   [⬜ TODO]   Splink switchover + threshold recalibration
 Решения, принятые в текущих гейтах, но отложенные до конкретного будущего гейта. 
 Перед стартом каждого гейта — пройтись по своему списку.
 
-### К Gate 8 (TenderGuru integration)
+### К Gate 8.3 (TenderGuru integration)
 
 1. **Страница Обзор → KPI**: добавить дельты для метрик «Активных тендеров», 
    «Срочные», «Сумма НМЦ» — после подключения TenderGuru появится исторический 

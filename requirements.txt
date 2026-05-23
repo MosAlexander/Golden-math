@@ -20,10 +20,7 @@ sqlalchemy>=2.0.0
 streamlit>=1.28.0
 plotly>=5.18.0
 
-# ── Telegram alerts ──
-python-telegram-bot>=20.0
-
-# ── LLM-judge (выбрать один) ──
+# ── LLM-judge + HTTP-транспорт (Telegram, GigaChat) ──
 requests>=2.31.0
 # gigachat  # pip install gigachat — для GigaChat API
 # yandexcloud  # для YandexGPT API
