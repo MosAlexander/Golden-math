@@ -30,6 +30,7 @@ Thumbs.db
 # Project artifacts (создаются на лету)
 data/last_run.json
 data/channels.json
+data/runs/
 docs/pipeline_runs.log
 
 # Temporary files (мусор после ручных проверок)

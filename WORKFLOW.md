@@ -38,16 +38,20 @@ Gate 7   [✅ PASSED]  Dashboard pages — Система (3 стр)
         синхронно обновить _decompose_relevance в dashboard/pages/matching.py
         и caption-форматы в легенде блока 4 (формулы '× 40%' и т.д.)
 Gate 8   [🔄 IN PROGRESS]  Integration — разбит на 8.1 / 8.2 / 8.3
-      8.1 ✅ PASSED — Telegram alerts (HTTP via requests)
-            • src/telegram_alerts.py — движок (get_token/get_me/send_message/build_message/notify), dry-run при отсутствии токена, 31 тест
-            • src/channels_config.py — CRUD над data/channels.json (каналы + тумблеры событий), 43 теста
-            • dashboard/pages/connections.py — блок «Telegram Bot API» (токен read-only + getMe-тест, CRUD каналов, «Когда отправлять»)
-            • dashboard/pages/matching.py — реальная отправка из action panel (3 события: participate/skip/ask), статус доставки в _render_sent_state
-            • Инфра: мост secrets→environ в streamlit_app.py, .streamlit/secrets.toml(.example), data/channels.json в .gitignore, python-telegram-bot убран из requirements
+      8.1 ✅ PASSED — Telegram + Email каналы доставки уведомлений
+            • src/telegram_alerts.py — движок (get_token/get_me/send_message/build_message/notify), dry-run при отсутствии токена, 31 тест; добавлен telegram_enabled + режим skipped_by_settings
+            • src/smtp_alerts.py — создан: get_smtp_config/test_connection/send_email/build_email_body/notify_email, dry-run при отсутствии конфига, зеркало telegram_alerts
+            • src/channels_config.py — CRUD над data/channels.json (каналы + тумблеры событий), 43 теста; расширен: type-agnostic delete/toggle, add_email_recipient, validate_email, email_recipients, is_channel_type_enabled, set_channel_flag, channel_flags {telegram_enabled, email_enabled}
+            • dashboard/pages/connections.py — Блок 5: Telegram Bot API (токен read-only + getMe-тест, CRUD каналов, «Когда отправлять» с caption «применяется ко всем каналам»); Блок 6: Email-канал (мастер-тумблер, SMTP-статус read-only, кнопка «Тест», CRUD получателей)
+            • dashboard/pages/matching.py — _dispatch_notification: трёхуровневый гейт (событие → канал → получатель), поканальный возврат {telegram, email}; _render_sent_state: backward-compat + поканальный формат
+            • dashboard/streamlit_app.py — мост secrets→environ: TELEGRAM_BOT_TOKEN + SMTP_* (host/port/user/password/from_addr/starttls)
+            • .streamlit/secrets.toml.example — добавлена секция [smtp] (Gmail/Яндекс placeholder)
+            • Хранение: telegram и email в общем channels[], различаются полем type ("telegram"|"email"), backward-compat (нет type → "telegram"); channel_flags в channels.json
             • Удалён блок «Уведомления» из settings.py (дублировал настройку каналов)
-            • Живой тест пройден: доставка во все каналы, тумблеры событий и вкл/выкл каналов работают
-            • Deferred → Email-канал доставки (SMTP) — каркас не делали, отложен
-            • Deferred → notify синхронный (timeout 5с×каналов под st.spinner); при росте числа каналов или добавлении Email рассмотреть фоновую отправку
+            • Живой тест Telegram пройден: доставка во все каналы, тумблеры событий и вкл/выкл каналов работают
+            • Живой тест Email пройден: Gmail App Password, 3 получателя (2 Gmail + 1 Яндекс), все 3 события (participate/skip/ask) работают
+            • Deferred → HTML-шаблон email (build_email_body): голый <h2>+<table> без inline-стилей; отложено — Email вторичный канал, визуальное отличие не приоритетно
+            • Deferred → notify синхронный (timeout 5с×каналов под st.spinner); при росте числа каналов рассмотреть фоновую отправку
       8.2 ⬜ TODO — LLM-judge (GigaChat/YandexGPT, только borderline 0.75–0.92, timeout 5с → manual queue)
       8.3 ⬜ TODO — TenderGuru API integration
             • Deferred: колонка «Спрос» в Каталоге SKU — кол-во тендеров на позицию за 30 дней.

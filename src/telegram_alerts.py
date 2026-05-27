@@ -153,6 +153,8 @@ def notify(
     catalog: dict,
     decision: dict,
     token: str | None = None,
+    *,
+    telegram_enabled: bool = True,
 ) -> dict:
     """Диспетчер уведомлений. Никогда не бросает исключение.
 
@@ -163,15 +165,23 @@ def notify(
         catalog: Данные SKU.
         decision: Контекст решения.
         token: Telegram bot token (по умолчанию из get_token()).
+        telegram_enabled: Мастер-тумблер из channel_flags; False → skipped_by_settings.
 
     Returns:
-        {"mode": "dry_run"|"live", "sent": list[str], "results": list[dict]}
+        {"mode": "dry_run"|"skipped_by_settings"|"live", "sent": list[str], "results": list[dict]}
     """
     if token is None:
         token = get_token()
 
     enabled = [ch for ch in channels if ch.get("enabled")]
     text = build_message(event, tender, catalog, decision)
+
+    if not telegram_enabled:
+        return {
+            "mode": "skipped_by_settings",
+            "sent": [],
+            "results": [{"channel": ch["name"], "status": "skipped", "error": None} for ch in enabled],
+        }
 
     if not token:
         for ch in enabled:
@@ -184,7 +194,7 @@ def notify(
         return {
             "mode": "dry_run",
             "sent": [],
-            "results": [{"channel": ch["name"], "status": "dry_run"} for ch in enabled],
+            "results": [{"channel": ch["name"], "status": "dry_run", "error": None} for ch in enabled],
         }
 
     results = []

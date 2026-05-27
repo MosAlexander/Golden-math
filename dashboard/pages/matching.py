@@ -45,7 +45,14 @@ from dashboard.data_utils import (
     load_tenders,
 )
 from src.telegram_alerts import notify, get_token
-from src.channels_config import load_config, enabled_channels, is_event_enabled
+from src.smtp_alerts import notify_email, get_smtp_config
+from src.channels_config import (
+    load_config,
+    is_event_enabled,
+    telegram_channels,
+    email_recipients,
+    is_channel_type_enabled,
+)
 
 
 # ── Format helper ─────────────────────────────────────────────────────────────
@@ -749,31 +756,50 @@ def _render_notification_preview(tender_row: dict, catalog_row: dict) -> None:
 
 
 def _dispatch_notification(event: str, tender_row: dict, catalog_row: dict, decision: dict) -> dict:
-    """Отправляет уведомление через notify(), если событие включено.
+    """Отправляет уведомление через оба канала (Telegram + Email), если событие включено.
 
-    Всегда возвращает dict с ключом mode:
-    "skipped_by_settings" — событие выключено в «Когда отправлять»,
-    "dry_run" — токен не настроен,
-    "live" — реальная отправка.
-    Никогда не бросает — notify сам оборачивает в try/except на каждый канал.
+    Возвращает:
+    - {"mode": "skipped_by_settings", ...} если событие выключено в «Когда отправлять»,
+    - {"telegram": {...}, "email": {...}} при нормальной отправке (каждый подdict
+      содержит mode/sent/results независимо от другого).
+    Никогда не бросает — notify/notify_email сами оборачивают в try/except.
     """
     config = load_config()
     if not is_event_enabled(config, event):
         return {"mode": "skipped_by_settings", "sent": [], "results": []}
-    channels = enabled_channels(config)
-    token = get_token()
+
     tender = {
-        "id": tender_row.get("id"),
-        "region": tender_row.get("region"),
-        "price_max": tender_row.get("price_max"),
+        "id":           tender_row.get("id"),
+        "region":       tender_row.get("region"),
+        "price_max":    tender_row.get("price_max"),
         "deadline_days": tender_row.get("deadline_days"),
     }
     catalog = {
         "part_number": catalog_row.get("part_number"),
-        "name": catalog_row.get("name") or catalog_row.get("description"),
+        "name":        catalog_row.get("name") or catalog_row.get("description"),
     }
+
     with st.spinner("Отправка уведомлений…"):
-        return notify(event, channels, tender, catalog, decision, token=token)
+        tg_result = notify(
+            event,
+            telegram_channels(config),
+            tender,
+            catalog,
+            decision,
+            token=get_token(),
+            telegram_enabled=is_channel_type_enabled(config, "telegram"),
+        )
+        em_result = notify_email(
+            event,
+            email_recipients(config),
+            tender,
+            catalog,
+            decision,
+            cfg=get_smtp_config(),
+            email_enabled=is_channel_type_enabled(config, "email"),
+        )
+
+    return {"telegram": tg_result, "email": em_result}
 
 
 def _render_default_buttons(decision: str, form_key: str) -> None:
@@ -980,12 +1006,15 @@ def _render_sent_state(notif: dict, notif_key: str, form_key: str) -> None:
                 st.rerun()
 
     delivery = notif.get("delivery")
-    if delivery is not None:
-        mode = delivery.get("mode")
-        if mode == "dry_run":
-            st.info("Уведомление сформировано (токен Telegram не настроен).")
-        elif mode == "skipped_by_settings":
+    if delivery is None:
+        return
+
+    # Плоский формат: событие выключено в «Когда отправлять» (или старый session state)
+    if "mode" in delivery:
+        if delivery["mode"] == "skipped_by_settings":
             st.info("Уведомление не отправлялось (отключено в «Когда отправлять»).")
+        elif delivery["mode"] == "dry_run":
+            st.info("Уведомление сформировано (токен Telegram не настроен).")
         else:
             sent = delivery.get("sent", [])
             failed = [r for r in delivery.get("results", []) if r.get("status") == "failed"]
@@ -995,6 +1024,31 @@ def _render_sent_state(notif: dict, notif_key: str, form_key: str) -> None:
                 st.warning(f"Не доставлено: {r.get('channel')} — {r.get('error', 'ошибка')}")
             if not sent and not failed:
                 st.info("Каналы получателей не настроены.")
+        return
+
+    # Поканальный формат: {"telegram": {...}, "email": {...}}
+    _TRANSPORTS = [
+        ("telegram", "Telegram", "токен Telegram не настроен"),
+        ("email",    "Email",    "SMTP не настроен"),
+    ]
+    for key, label, no_cfg_msg in _TRANSPORTS:
+        td = delivery.get(key)
+        if td is None:
+            continue
+        mode = td.get("mode")
+        if mode == "dry_run":
+            st.info(f"{label}: уведомление сформировано ({no_cfg_msg}).")
+        elif mode == "skipped_by_settings":
+            st.info(f"{label}: не отправлялось (отключён в настройках).")
+        else:
+            sent   = td.get("sent", [])
+            failed = [r for r in td.get("results", []) if r.get("status") == "failed"]
+            if sent:
+                st.success(f"{label}: отправлено → " + ", ".join(sent))
+            for r in failed:
+                st.warning(f"{label}: не доставлено — {r.get('channel')} ({r.get('error', 'ошибка')})")
+            if not sent and not failed:
+                st.info(f"{label}: каналы получателей не настроены.")
 
 
 def _render_form(

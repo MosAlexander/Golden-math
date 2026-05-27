@@ -2,6 +2,23 @@ from __future__ import annotations
 
 import streamlit as st
 from src.telegram_alerts import get_token, get_me, send_message
+from src.smtp_alerts import (
+    get_smtp_config,
+    test_connection,
+    send_email,
+    build_email_body,
+)
+
+
+@st.cache_data(ttl=30)
+def _cached_get_me(token: str) -> dict:
+    return get_me(token)
+
+
+@st.cache_data(ttl=30)
+def _cached_test_connection(host: str, port: int, user: str) -> dict | None:
+    cfg = get_smtp_config()
+    return test_connection(cfg) if cfg else None
 from src.channels_config import (
     load_config,
     save_config,
@@ -10,8 +27,15 @@ from src.channels_config import (
     delete_channel,
     toggle_channel,
     set_event,
+    set_channel_flag,
     validate_chat_id,
+    validate_email,
+    add_email_recipient,
+    update_email_recipient,
     enabled_channels,
+    telegram_channels,
+    email_recipients,
+    is_channel_type_enabled,
 )
 
 st.markdown("## :primary[:material/cable:] Подключения")
@@ -169,13 +193,27 @@ with st.container(border=True):
 # ── Блок 5: Telegram Bot API ─────────────────────────────────────────────────
 
 with st.container(border=True):
+    config = load_config()
+    tg_enabled = is_channel_type_enabled(config, "telegram")
     token = get_token()
-    me_result = get_me(token) if token else None
+    me_result = _cached_get_me(token) if token else None
 
-    head_col, badge_col = st.columns([5, 1], vertical_alignment="center")
+    head_col, toggle_col, badge_col = st.columns(
+        [7, 1.2, 2], vertical_alignment="center"
+    )
     with head_col:
         st.markdown("#### :primary[:material/send:] Telegram Bot API")
         st.caption("Бот и каналы для уведомлений об участии в тендерах")
+    with toggle_col:
+        new_tg_enabled = st.toggle(
+            "Telegram канал",
+            value=tg_enabled,
+            key="tg_master_enabled",
+            label_visibility="collapsed",
+        )
+        if new_tg_enabled != tg_enabled:
+            save_config(set_channel_flag(config, "telegram", new_tg_enabled))
+            st.rerun()
     with badge_col:
         if token and me_result and me_result["ok"]:
             st.markdown(":green-background[:green[Подключён]]")
@@ -213,7 +251,7 @@ with st.container(border=True):
                     if not recheck["ok"]:
                         st.toast(f"Ошибка токена: {recheck['error']}")
                     else:
-                        test_channels = enabled_channels(load_config())
+                        test_channels = telegram_channels(config)
                         if not test_channels:
                             st.toast("Нет активных каналов — добавьте канал ниже.")
                         else:
@@ -233,27 +271,29 @@ with st.container(border=True):
                                 st.toast(f"Не доставлено — {f}", icon=":material/error:")
 
     # ── Секция: каналы получателей ──
-    config = load_config()
-    channels = config.get("channels", [])
-    active_count = sum(1 for ch in channels if ch.get("enabled"))
-    inactive_count = len(channels) - active_count
+    tg_channels = [
+        ch for ch in config.get("channels", [])
+        if ch.get("type", "telegram") == "telegram"
+    ]
+    active_count = sum(1 for ch in tg_channels if ch.get("enabled"))
+    inactive_count = len(tg_channels) - active_count
 
     with st.container(border=True):
         ch_head_col, ch_count_col = st.columns([5, 2], vertical_alignment="center")
         with ch_head_col:
             st.markdown("**Каналы получателей**")
         with ch_count_col:
-            if channels:
+            if tg_channels:
                 st.caption(f"{active_count} активных · {inactive_count} выключен")
 
-        if not channels:
+        if not tg_channels:
             st.caption(
                 ":material/info: Каналов пока нет. Добавьте первый в форме ниже — "
                 "после сохранения он появится здесь с переключателем и кнопками "
                 "редактирования и удаления."
             )
         else:
-            for channel in channels:
+            for channel in tg_channels:
                 ch_id = channel["id"]
                 with st.container(border=True):
                     col_info, col_toggle, col_edit, col_del = st.columns(
@@ -346,6 +386,7 @@ with st.container(border=True):
     # ── Секция: когда отправлять ──
     with st.container(border=True):
         st.markdown("**Когда отправлять**")
+        st.caption("Применяется ко всем каналам — Telegram и Email")
         _events = [
             ("participate", "При решении «Участвовать»"),
             ("ask",         "При «Запросить мнение»"),
@@ -357,3 +398,222 @@ with st.container(border=True):
             if new_val != current:
                 save_config(set_event(config, ev_key, new_val))
                 st.rerun()
+
+# ── Блок 6: Email-канал доставки ──────────────────────────────────────────────
+
+with st.container(border=True):
+    email_config = load_config()
+    smtp_cfg = get_smtp_config()
+    smtp_check = _cached_test_connection(
+        smtp_cfg["host"], smtp_cfg["port"], smtp_cfg["user"]
+    ) if smtp_cfg else None
+    em_enabled = is_channel_type_enabled(email_config, "email")
+
+    # ── Шапка: заголовок + мастер-тумблер + статус-бейдж ──
+    em_head_col, em_toggle_col, em_badge_col = st.columns(
+        [7, 1.2, 2], vertical_alignment="center"
+    )
+    with em_head_col:
+        st.markdown("#### :primary[:material/mail:] Email-канал доставки")
+        st.caption("Дублирование уведомлений на почту")
+    with em_toggle_col:
+        new_em_enabled = st.toggle(
+            "Email канал",
+            value=em_enabled,
+            key="em_master_enabled",
+            label_visibility="collapsed",
+        )
+        if new_em_enabled != em_enabled:
+            save_config(set_channel_flag(email_config, "email", new_em_enabled))
+            st.rerun()
+    with em_badge_col:
+        if not em_enabled:
+            st.markdown(":gray-background[:gray[Отключён]]")
+        elif smtp_cfg and smtp_check and smtp_check["ok"]:
+            st.markdown(":green-background[:green[Подключён]]")
+        elif smtp_cfg:
+            st.markdown(":red-background[:red[Ошибка SMTP]]")
+        else:
+            st.markdown(":gray-background[:gray[Не настроен]]")
+
+    # ── Секция: SMTP-статус (read-only) + кнопка «Тест» ──
+    with st.container(border=True):
+        col_msg, col_btn = st.columns([4, 1], vertical_alignment="center")
+        with col_msg:
+            if smtp_cfg:
+                if smtp_check and smtp_check["ok"]:
+                    st.success(
+                        f"SMTP {smtp_cfg['host']}:{smtp_cfg['port']} — "
+                        f"соединение успешно",
+                        icon=":material/check_circle:",
+                    )
+                else:
+                    err = smtp_check["error"] if smtp_check else "нет данных"
+                    st.error(f"Ошибка SMTP: {err}", icon=":material/error:")
+            else:
+                st.info(
+                    "SMTP не настроен. Добавьте секцию [smtp] в "
+                    ".streamlit/secrets.toml (см. secrets.toml.example).",
+                    icon=":material/info:",
+                )
+        with col_btn:
+            if st.button(":material/rocket_launch: Тест", key="em_test",
+                         use_container_width=True):
+                if not smtp_cfg:
+                    st.toast("SMTP не настроен")
+                else:
+                    recheck = test_connection(smtp_cfg)
+                    if not recheck["ok"]:
+                        st.toast(f"Ошибка SMTP: {recheck['error']}")
+                    else:
+                        active = email_recipients(load_config())
+                        if not active:
+                            st.toast("Нет активных получателей — добавьте ниже.")
+                        else:
+                            first = active[0]
+                            subject, html_body, text_body = build_email_body(
+                                "participate",
+                                {"id": "TEST", "region": "—",
+                                 "price_max": None, "deadline_days": None},
+                                {"part_number": "TEST-PN",
+                                 "name": "Тестовое уведомление GoldenMatch Pro"},
+                                {"comment": "Проверка email-канала доставки."},
+                            )
+                            res = send_email(
+                                smtp_cfg, first["email"], subject,
+                                html_body, text_body,
+                            )
+                            if res["ok"]:
+                                st.toast(
+                                    f"Отправлено: {first['name']} "
+                                    f"({first['email']})",
+                                    icon=":material/check_circle:",
+                                )
+                            else:
+                                st.toast(
+                                    f"Не доставлено — {res.get('error', 'ошибка')}",
+                                    icon=":material/error:",
+                                )
+
+    # ── Секция: получатели ──
+    all_recipients = [
+        ch for ch in email_config.get("channels", [])
+        if ch.get("type") == "email"
+    ]
+    em_active = sum(1 for r in all_recipients if r.get("enabled"))
+    em_inactive = len(all_recipients) - em_active
+
+    with st.container(border=True):
+        r_head_col, r_count_col = st.columns([5, 2], vertical_alignment="center")
+        with r_head_col:
+            st.markdown("**Получатели**")
+        with r_count_col:
+            if all_recipients:
+                st.caption(f"{em_active} активных · {em_inactive} выключен")
+
+        if not all_recipients:
+            st.caption(
+                ":material/info: Получателей пока нет. Добавьте первого в форме "
+                "ниже — после сохранения он появится здесь с переключателем и "
+                "кнопками редактирования и удаления."
+            )
+        else:
+            for recipient in all_recipients:
+                rec_id = recipient["id"]
+                with st.container(border=True):
+                    col_info, col_toggle, col_edit, col_del = st.columns(
+                        [7, 1.2, 1, 1], vertical_alignment="center"
+                    )
+                    with col_info:
+                        st.markdown(
+                            f":material/mail: **{recipient['name']}**  \n"
+                            f"&nbsp;&nbsp;&nbsp;&nbsp;"
+                            f":gray[{recipient['email']}]"
+                        )
+                    with col_toggle:
+                        new_enabled = st.toggle(
+                            "вкл",
+                            value=recipient["enabled"],
+                            key=f"em_toggle_{rec_id}",
+                            label_visibility="collapsed",
+                        )
+                        if new_enabled != recipient["enabled"]:
+                            save_config(
+                                toggle_channel(email_config, rec_id, new_enabled)
+                            )
+                            st.rerun()
+                    with col_edit:
+                        if st.button("", icon=":material/edit:",
+                                     key=f"em_edit_{rec_id}",
+                                     use_container_width=True):
+                            st.session_state[f"em_editing_{rec_id}"] = True
+                            st.rerun()
+                    with col_del:
+                        if st.button("", icon=":material/delete:",
+                                     key=f"em_del_{rec_id}",
+                                     use_container_width=True):
+                            save_config(delete_channel(email_config, rec_id))
+                            st.toast(f"Получатель «{recipient['name']}» удалён")
+                            st.rerun()
+
+                if st.session_state.get(f"em_editing_{rec_id}"):
+                    with st.container(border=True):
+                        st.caption(
+                            f":material/edit: Редактирование «{recipient['name']}»"
+                        )
+                        ef1, ef2 = st.columns(2)
+                        with ef1:
+                            new_name = st.text_input(
+                                "Название", value=recipient["name"],
+                                key=f"em_ename_{rec_id}"
+                            )
+                        with ef2:
+                            new_email = st.text_input(
+                                "Email", value=recipient["email"],
+                                key=f"em_eemail_{rec_id}"
+                            )
+                        esave_col, ecancel_col, _ = st.columns([1, 1, 3])
+                        with esave_col:
+                            save_clicked = st.button(
+                                "Сохранить", key=f"em_esave_{rec_id}",
+                                type="primary", use_container_width=True
+                            )
+                        with ecancel_col:
+                            if st.button("Отмена", key=f"em_ecancel_{rec_id}",
+                                         use_container_width=True):
+                                st.session_state.pop(f"em_editing_{rec_id}", None)
+                                st.rerun()
+                        if save_clicked:
+                            try:
+                                save_config(update_email_recipient(
+                                    email_config, rec_id,
+                                    name=new_name, email=new_email
+                                ))
+                                st.session_state.pop(f"em_editing_{rec_id}", None)
+                                st.toast("Получатель обновлён")
+                                st.rerun()
+                            except ValueError as e:
+                                st.error(str(e), icon=":material/error:")
+
+    # ── Секция: добавить получателя ──
+    with st.container(border=True):
+        st.markdown("**Добавить получателя**")
+        with st.form("em_add_form", clear_on_submit=True, border=False):
+            add1, add2, add3 = st.columns([2, 2, 1], vertical_alignment="bottom")
+            with add1:
+                _em_name = st.text_input("Название", key="em_new_name",
+                                         placeholder="напр. Закупки")
+            with add2:
+                _em_email = st.text_input("Email", key="em_new_email",
+                                          placeholder="name@company.ru")
+            with add3:
+                em_add_clicked = st.form_submit_button(
+                    ":material/add: Добавить", use_container_width=True
+                )
+        if em_add_clicked:
+            try:
+                save_config(add_email_recipient(email_config, _em_name, _em_email))
+                st.toast("Получатель добавлен")
+                st.rerun()
+            except ValueError as e:
+                st.error(str(e), icon=":material/error:")

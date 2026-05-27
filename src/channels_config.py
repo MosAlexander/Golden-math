@@ -11,7 +11,8 @@ logger = logging.getLogger(__name__)
 CHANNELS_PATH = Path("data/channels.json")
 DEFAULT_CONFIG: dict = {
     "channels": [],
-    "events": {"participate": True, "ask": True, "skip": False},
+    "events":        {"participate": True, "ask": True, "skip": False},
+    "channel_flags": {"telegram_enabled": True, "email_enabled": True},
 }
 
 
@@ -33,6 +34,8 @@ def load_config(path: Path = CHANNELS_PATH) -> dict:
             result["channels"] = raw["channels"]
         if "events" in raw:
             result["events"].update(raw["events"])
+        if "channel_flags" in raw:
+            result["channel_flags"].update(raw["channel_flags"])
         return result
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         return copy.deepcopy(DEFAULT_CONFIG)
@@ -221,6 +224,48 @@ def enabled_channels(config: dict) -> list[dict]:
     return [ch for ch in config.get("channels", []) if ch.get("enabled")]
 
 
+def _channel_type(ch: dict) -> str:
+    return ch.get("type", "telegram")
+
+
+def telegram_channels(config: dict) -> list[dict]:
+    """Активные каналы типа telegram (для telegram_alerts.notify).
+
+    Args:
+        config: Текущий конфиг.
+
+    Returns:
+        Список каналов с enabled=True и type="telegram" (или без type — backward compat).
+    """
+    return [ch for ch in config.get("channels", []) if ch.get("enabled") and _channel_type(ch) == "telegram"]
+
+
+def email_recipients(config: dict) -> list[dict]:
+    """Активные получатели типа email (для smtp_alerts.notify_email).
+
+    Args:
+        config: Текущий конфиг.
+
+    Returns:
+        Список каналов с enabled=True и type="email".
+    """
+    return [ch for ch in config.get("channels", []) if ch.get("enabled") and _channel_type(ch) == "email"]
+
+
+def is_channel_type_enabled(config: dict, channel_type: str) -> bool:
+    """Проверяет мастер-тумблер для типа канала из channel_flags.
+
+    Args:
+        config: Текущий конфиг.
+        channel_type: "telegram" или "email".
+
+    Returns:
+        True если тип канала включён (дефолт True при отсутствии ключа).
+    """
+    key = f"{channel_type}_enabled"
+    return bool(config.get("channel_flags", {}).get(key, True))
+
+
 def is_event_enabled(config: dict, event: str) -> bool:
     """Проверяет, включено ли событие.
 
@@ -232,3 +277,116 @@ def is_event_enabled(config: dict, event: str) -> bool:
         True если событие включено, False если выключено или неизвестно.
     """
     return bool(config.get("events", {}).get(event, False))
+
+
+def validate_email(email: str) -> str:
+    """Валидирует и нормализует email-адрес получателя.
+
+    Args:
+        email: Email-адрес (может содержать пробелы по краям).
+
+    Returns:
+        Нормализованный (stripped) email при успехе.
+
+    Raises:
+        ValueError: Если формат некорректен.
+    """
+    email = email.strip()
+    if not email:
+        raise ValueError("Email адрес не может быть пустым")
+    if " " in email:
+        raise ValueError(f"Email не должен содержать пробелы: {email!r}")
+    if email.count("@") != 1:
+        raise ValueError(f"Email должен содержать ровно один символ @: {email!r}")
+    local, domain = email.split("@")
+    if not local:
+        raise ValueError(f"Некорректный email — пустая часть до @: {email!r}")
+    if "." not in domain or domain.startswith(".") or domain.endswith("."):
+        raise ValueError(f"Некорректный домен в email: {email!r}")
+    return email
+
+
+def add_email_recipient(config: dict, name: str, email: str) -> dict:
+    """Добавляет нового email-получателя. Зеркало add_channel для type="email".
+
+    Args:
+        config: Текущий конфиг.
+        name: Название получателя.
+        email: Email-адрес получателя.
+
+    Returns:
+        Новый конфиг с добавленным получателем.
+
+    Raises:
+        ValueError: Если name пустой после strip или email невалидный.
+    """
+    if not name.strip():
+        raise ValueError("Название получателя не может быть пустым")
+    clean_email = validate_email(email)
+    new_config = copy.deepcopy(config)
+    channel_id = _next_id(new_config["channels"])
+    new_config["channels"].append({
+        "id":      channel_id,
+        "name":    name.strip(),
+        "type":    "email",
+        "email":   clean_email,
+        "enabled": True,
+    })
+    return new_config
+
+
+def update_email_recipient(
+    config: dict,
+    channel_id: str,
+    *,
+    name: str | None = None,
+    email: str | None = None,
+) -> dict:
+    """Обновляет имя и/или email получателя по id. Зеркало update_channel.
+
+    Args:
+        config: Текущий конфиг.
+        channel_id: id получателя для обновления.
+        name: Новое название (опционально).
+        email: Новый email (опционально).
+
+    Returns:
+        Новый конфиг.
+
+    Raises:
+        ValueError: Если получатель не найден или новый email невалидный.
+    """
+    if name is not None and not name.strip():
+        raise ValueError("Название получателя не может быть пустым")
+    clean_email = validate_email(email) if email is not None else None
+    new_config = copy.deepcopy(config)
+    for ch in new_config["channels"]:
+        if ch["id"] == channel_id:
+            if name is not None:
+                ch["name"] = name.strip()
+            if clean_email is not None:
+                ch["email"] = clean_email
+            return new_config
+    raise ValueError(f"Получатель не найден: {channel_id!r}")
+
+
+def set_channel_flag(config: dict, channel_type: str, enabled: bool) -> dict:
+    """Устанавливает мастер-тумблер типа канала в channel_flags.
+
+    Args:
+        config: Текущий конфиг.
+        channel_type: "telegram" или "email".
+        enabled: Новое значение флага.
+
+    Returns:
+        Новый конфиг.
+
+    Raises:
+        ValueError: Если channel_type неизвестен.
+    """
+    _VALID = {"telegram", "email"}
+    if channel_type not in _VALID:
+        raise ValueError(f"Неизвестный тип канала: {channel_type!r}. Допустимые: {_VALID}")
+    new_config = copy.deepcopy(config)
+    new_config["channel_flags"][f"{channel_type}_enabled"] = enabled
+    return new_config

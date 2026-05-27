@@ -26,6 +26,15 @@ try:
 except Exception:
     pass
 
+try:
+    if "smtp" in st.secrets:
+        for _smtp_key, _smtp_val in st.secrets["smtp"].items():
+            env_key = f"SMTP_{_smtp_key.upper()}"
+            if env_key not in os.environ:
+                os.environ[env_key] = str(_smtp_val)
+except Exception:
+    pass
+
 # Все страницы относительно dashboard/streamlit_app.py
 pages = {
     "📊 Мониторинг": [
