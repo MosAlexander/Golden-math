@@ -53,6 +53,12 @@ from src.channels_config import (
     email_recipients,
     is_channel_type_enabled,
 )
+from src import llm_judge_config
+from src.llm_judge import judge_pair
+from src.llm_verdicts_store import (
+    get_verdict as llm_get_verdict,
+    save_verdict as llm_save_verdict,
+)
 
 
 # ── Format helper ─────────────────────────────────────────────────────────────
@@ -558,6 +564,148 @@ def _render_match_card(tender_row: dict, catalog_row: dict, best_match: dict) ->
             st.caption("Приоритет в ленте")
 
 
+# ── LLM-судья block ──────────────────────────────────────────────────────────
+
+def _render_llm_verdict_block(
+    tender_row: dict,
+    catalog_row: dict,
+    best_match: dict,
+) -> None:
+    """4-state LLM verdict block: idle / ok-match / ok-nomatch / error.
+
+    Only rendered for borderline decisions. Never mutates best_match.
+    """
+    _tid = tender_row.get("id", "")
+    _cid = best_match.get("catalog_id", "")
+    _vkey = f"{_tid}|{_cid}"
+    _ss_dismissed = f"llm_dismissed_{_vkey}"
+
+    _enabled = llm_judge_config.is_enabled()
+    _verdict = llm_get_verdict(_vkey)
+
+    if st.session_state.get(_ss_dismissed):
+        _verdict = None
+
+    if _verdict is None:
+        _state = "idle"
+    elif _verdict["status"] == "ok":
+        _state = "ok-match" if _verdict.get("is_match") else "ok-nomatch"
+    else:
+        _state = "error"
+
+    with st.container(border=True):
+        st.markdown("#### :primary[:material/auto_awesome:] Заключение AI-эксперта")
+
+        if _state == "idle":
+            _info_col, _btn_col = st.columns([4, 1])
+            with _info_col:
+                if _enabled:
+                    st.markdown(
+                        "Этот матч находится в borderline-зоне (0.75–0.92) — "
+                        "движок не уверен достаточно для авто-решения."
+                    )
+                    st.caption(
+                        f"Провайдер: {llm_judge_config.get_provider_name()} · "
+                        f"Модель: {llm_judge_config.get_model()}"
+                    )
+                else:
+                    st.info(
+                        "LLM-судья отключён. Включите на странице "
+                        "**Подключения → LLM-судья**.",
+                        icon=":material/info:",
+                    )
+            with _btn_col:
+                if st.button(
+                    "Запросить анализ",
+                    key="llm_request",
+                    disabled=not _enabled,
+                    use_container_width=True,
+                ):
+                    st.session_state.pop(_ss_dismissed, None)
+                    _pair = {
+                        "tender_id": _tid,
+                        "catalog_id": _cid,
+                        "tender_name": tender_row.get("name", ""),
+                        "catalog_pn": catalog_row.get("part_number", ""),
+                        "catalog_mfr": catalog_row.get("manufacturer", ""),
+                        "match_probability": float(best_match.get("match_probability", 0.0)),
+                    }
+                    with st.spinner("GigaChat анализирует…"):
+                        _v = judge_pair(_pair)
+                    llm_save_verdict(_vkey, _v)
+                    st.rerun()
+
+        elif _state in ("ok-match", "ok-nomatch"):
+            _conf_ru = {"high": "высокая", "medium": "средняя", "low": "низкая"}.get(
+                _verdict.get("confidence"), "—"
+            )
+            _pct      = round(_verdict.get("scored_at_probability", 0) * 100)
+            _reasoning = _verdict.get("reasoning", "—")
+            _model     = _verdict.get("model", "—")
+            _disagree  = _verdict.get("splink_llm_disagree", False)
+            _created   = (_verdict.get("created_at") or "—")[:10]
+
+            if _state == "ok-match":
+                st.success(
+                    f"Эксперт подтверждает матч · уверенность {_conf_ru}",
+                    icon=":material/verified:",
+                )
+            elif _disagree:
+                st.error(
+                    f"Эксперт НЕ подтверждает матч — расхождение\n\n"
+                    f"Движок: {_pct}% · Эксперт: матча нет · уверенность {_conf_ru}",
+                    icon=":material/cancel:",
+                )
+            else:
+                # ok AND is_match=False AND splink_llm_disagree=False (недостижимо в 8.2)
+                st.info(
+                    f"Эксперт: матча нет (соглашается с движком) · уверенность {_conf_ru}",
+                    icon=":material/info:",
+                )
+                st.caption("Ручной пересмотр не требуется — Gate 9")
+
+            st.markdown(_reasoning)
+            st.caption(
+                f"Модель: {_model} · "
+                f"prompt v{_verdict.get('prompt_version', '—')} · "
+                f"latency {_verdict.get('latency_ms', '—')} мс · "
+                f"{_created}"
+            )
+
+        else:  # error
+            _status = _verdict.get("status", "error")
+            _reason = _verdict.get("reasoning", "—")
+            _labels = {
+                "timeout":          "Таймаут",
+                "invalid_response": "Некорректный ответ модели",
+                "error":            "Ошибка",
+            }
+            st.info(
+                f"{_labels.get(_status, 'Ошибка')}: {_reason}",
+                icon=":material/info:",
+            )
+            _rtr_col, _ = st.columns([1, 4])
+            with _rtr_col:
+                if st.button(
+                    "Повторить",
+                    key="llm_retry",
+                    disabled=not _enabled,
+                    use_container_width=True,
+                ):
+                    _pair = {
+                        "tender_id": _tid,
+                        "catalog_id": _cid,
+                        "tender_name": tender_row.get("name", ""),
+                        "catalog_pn": catalog_row.get("part_number", ""),
+                        "catalog_mfr": catalog_row.get("manufacturer", ""),
+                        "match_probability": float(best_match.get("match_probability", 0.0)),
+                    }
+                    with st.spinner("GigaChat анализирует…"):
+                        _v = judge_pair(_pair)
+                    llm_save_verdict(_vkey, _v)
+                    st.rerun()
+
+
 # ── Empty state ───────────────────────────────────────────────────────────────
 
 def _render_empty_state() -> None:
@@ -660,27 +808,9 @@ with st.container(border=True):
         for line in insights.how_score_built:
             st.markdown(line)
 
-# ── Блок 3: LLM-плейсхолдер (только borderline) ──────────────────────────────
+# ── Блок 3: LLM-судья (только borderline) ─────────────────────────────────────
 if best_match.get("decision") == "borderline":
-    with st.container(border=True):
-        st.markdown("#### :primary[:material/auto_awesome:] Заключение AI-эксперта")
-        info_col, btn_col = st.columns([4, 1])
-        with info_col:
-            st.markdown(
-                "Этот матч находится в borderline-зоне (0.75–0.92) — "
-                "движок не уверен достаточно для авто-решения."
-            )
-            st.caption(
-                "В production-версии GigaChat / YandexGPT дают вердикт за ~2 секунды. "
-                "Активация запланирована в Gate 8."
-            )
-        with btn_col:
-            st.button(
-                "Запросить анализ",
-                disabled=True,
-                key="llm_request_disabled",
-                help="Активируется в Gate 8 — LLM-judge",
-            )
+    _render_llm_verdict_block(tender_row, catalog_row, best_match)
 
 # ── Блок 4: relevance breakdown ───────────────────────────────────────────────
 relevance = float(best_match.get("relevance", 0))

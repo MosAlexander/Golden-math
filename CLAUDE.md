@@ -84,6 +84,12 @@ Radal Микроэлектроника (ООО Радал, ИНН 2634101203, С
 
 **«Когда отправлять»** (participate/ask/skip) — тоже через UI, хранится там же.
 
+## Эксплуатация: LLM-judge промты
+
+**Промты:** живут в `src/llm_judge_prompts.py`. Протокол правки — в docstring того файла:
+поднять `PROMPT_VERSION`, перезапустить Streamlit (hot-reload не работает для `src/*.py`).
+**Аудит:** `git log/blame src/llm_judge_prompts.py` + поле `prompt_version` в каждом вердикте (`data/llm_verdicts.json`).
+
 ## При работе с кодом
 - Всегда читай docs/RULES.md перед изменением matching-логики
 - Всегда читай docs/DECISIONS.md перед архитектурными решениями

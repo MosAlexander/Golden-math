@@ -19,6 +19,10 @@ env/
 # Streamlit secrets (токены — не коммитить)
 .streamlit/secrets.toml
 
+# Сертификат Минцифры — локальный, не коммитить
+*.cer
+*.crt
+
 # IDE
 .vscode/
 .idea/
@@ -30,6 +34,8 @@ Thumbs.db
 # Project artifacts (создаются на лету)
 data/last_run.json
 data/channels.json
+data/llm_config.json
+data/llm_verdicts.json
 data/runs/
 docs/pipeline_runs.log
 

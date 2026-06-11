@@ -70,6 +70,7 @@ def test_save_load_roundtrip(tmp_path):
     cfg = {
         "channels": [{"id": "ch_1", "name": "Менеджеры", "chat_id": "-1001234567890", "enabled": True}],
         "events": {"participate": True, "ask": True, "skip": False},
+        "channel_flags": {"telegram_enabled": True, "email_enabled": True},
     }
     path = tmp_path / "channels.json"
     save_config(cfg, path)

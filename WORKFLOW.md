@@ -52,7 +52,19 @@ Gate 8   [🔄 IN PROGRESS]  Integration — разбит на 8.1 / 8.2 / 8.3
             • Живой тест Email пройден: Gmail App Password, 3 получателя (2 Gmail + 1 Яндекс), все 3 события (participate/skip/ask) работают
             • Deferred → HTML-шаблон email (build_email_body): голый <h2>+<table> без inline-стилей; отложено — Email вторичный канал, визуальное отличие не приоритетно
             • Deferred → notify синхронный (timeout 5с×каналов под st.spinner); при росте числа каналов рассмотреть фоновую отправку
-      8.2 ⬜ TODO — LLM-judge (GigaChat/YandexGPT, только borderline 0.75–0.92, timeout 5с → manual queue)
+      8.2 ✅ PASSED — LLM-judge (GigaChat/YandexGPT, только borderline 0.75–0.92, timeout 5с → manual queue)
+            • src/llm_judge.py — фасад judge_pair(): GigaChat OAuth (ngw.devices.sberbank.ru), timeout 5 с, fallback → status=error
+            • src/llm_judge_config.py — is_enabled/get_model/get_timeout/get_provider, хранение в data/llm_config.json
+            • src/llm_judge_prompts.py — PROMPT_VERSION + system/user prompt (GigaChat Max), протокол правки в docstring
+            • src/llm_verdicts_store.py — get_verdict/save_verdict, ключ f"{tender_id}|{catalog_id}", файл data/llm_verdicts.json
+            • src/storage.py — утилиты чтения/записи JSON с mkdir
+            • dashboard/pages/connections.py — Блок 4: LLM-судья: мастер-тумблер + badge (Отключён/Активен/Нет ключа), provider/model selectbox, кнопка «Тест» (gate by creds_present)
+            • dashboard/pages/matching.py — _render_llm_verdict_block(): 4 состояния (idle/ok-match/ok-nomatch/error), splink_llm_disagree, caption с prompt_version + latency_ms
+            • dashboard/streamlit_app.py — мост secrets→environ: GIGACHAT_CREDENTIALS / GIGACHAT_SCOPE / GIGACHAT_CA_BUNDLE
+            • .streamlit/secrets.toml.example — секция [gigachat] (credentials/scope/ca_bundle)
+            • tests/test_llm_judge.py — 108 тестов: unit + facade (disabled/timeout/ok-match/ok-nomatch/disagree); monkeypatch is_enabled для изоляции от диска
+            • Живой тест пройден: GigaChat API отвечает, вердикт idle → кнопка → ok-match отображается корректно
+            • 401 passed, 1 skipped, 1 xfailed (IRF740PBF без дефиса — pre-existing, не Gate 8.2)
       8.3 ⬜ TODO — TenderGuru API integration
             • Deferred: колонка «Спрос» в Каталоге SKU — кол-во тендеров на позицию за 30 дней.
               Требует ежедневный запуск пайплайна (TenderGuru), хранение per-SKU попаданий, агрегацию по дате.
@@ -60,7 +72,7 @@ Gate 9   [⬜ TODO]   Splink switchover + threshold recalibration
       — Deferred: radar axes из реального Splink feature importance (сейчас mock)
 ```
 
-**Следующее действие:** Gate 8.2 — LLM-judge (GigaChat/YandexGPT для borderline-зоны)
+**Следующее действие:** Gate 8.3 — TenderGuru API integration
 
 ---
 
@@ -90,6 +102,17 @@ Gate 9   [⬜ TODO]   Splink switchover + threshold recalibration
   (`Ctrl+C` в терминале + повторный `python -m streamlit run
   dashboard/streamlit_app.py`). Это особенно важно при перекалибровке порогов
   и весов в Gate 9.
+
+- **После правки `src/llm_judge_prompts.py` нужен перезапуск Streamlit.**
+  Это `src/`-модуль, не страница — hot-reload не работает. Всегда делать
+  жёсткий перезапуск процесса + поднимать `PROMPT_VERSION` в файле промтов.
+  Версия сохраняется в каждом вердикте (`data/llm_verdicts.json` →
+  поле `prompt_version`) для аудита через `git log src/llm_judge_prompts.py`.
+
+- **`data/llm_verdicts.json` — last-write-wins, без файловой блокировки.**
+  Корректно для single-user-инсталляции. При одновременном использовании
+  из нескольких процессов возможны потери вердиктов. Деферред → Gate 9
+  (там же переход на PostgreSQL).
 
 ---
 

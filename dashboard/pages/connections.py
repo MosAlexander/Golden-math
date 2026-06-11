@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import os
+
 import streamlit as st
+from src import llm_judge_config
+from src.llm_judge import check_connection as llm_check_connection
 from src.telegram_alerts import get_token, get_me, send_message
 from src.smtp_alerts import (
     get_smtp_config,
@@ -154,41 +158,105 @@ with st.container(border=True):
 # ── Блок 4: LLM-судья ────────────────────────────────────────────────────────
 
 with st.container(border=True):
-    head_col, badge_col = st.columns([5, 1])
-    with head_col:
+    _llm_cfg = llm_judge_config.load()
+    _llm_enabled = _llm_cfg["enabled"]
+    _creds_set = bool(os.environ.get("GIGACHAT_CREDENTIALS", "").strip())
+    _ca_present = bool(os.environ.get("GIGACHAT_CA_BUNDLE", "").strip())
+
+    # ── Шапка: заголовок + мастер-тумблер + статус-бейдж ──
+    llm_head_col, llm_toggle_col, llm_badge_col = st.columns(
+        [7, 1.2, 2], vertical_alignment="center"
+    )
+    with llm_head_col:
         st.markdown("#### :primary[:material/psychology:] LLM-судья")
         st.caption("Резервный аналитик для borderline-кейсов (0.75 ≤ score < 0.92)")
-    with badge_col:
-        st.markdown(":primary-background[:primary[Gate 8]]")
-
-    col_provider, col_key = st.columns(2)
-    with col_provider:
-        st.selectbox(
-            "Провайдер",
-            options=["GigaChat Max", "YandexGPT"],
-            index=0,
-            disabled=True,
-            key="llm_provider",
+    with llm_toggle_col:
+        _new_llm_enabled = st.toggle(
+            "LLM-судья",
+            value=_llm_enabled,
+            key="llm_master_enabled",
+            label_visibility="collapsed",
         )
-    with col_key:
-        st.text_input(
-            "API ключ",
-            value="",
-            type="password",
-            disabled=True,
-            key="llm_api_key",
+        if _new_llm_enabled != _llm_enabled:
+            llm_judge_config.save({**_llm_cfg, "enabled": _new_llm_enabled})
+            st.rerun()
+    with llm_badge_col:
+        if not _llm_enabled:
+            st.markdown(":gray-background[:gray[Отключён]]")
+        elif _creds_set and _ca_present:
+            st.markdown(":green-background[:green[Активен]]")
+        else:
+            st.markdown(":red-background[:red[Нет ключа]]")
+
+    # ── Секция: провайдер и модель ──
+    _PROVIDER_KEYS = ["gigachat", "yandexgpt"]
+    _PROVIDER_LABELS = ["GigaChat", "YandexGPT"]
+    _MODEL_OPTS: dict[str, list[str]] = {
+        "gigachat": ["GigaChat-Max", "GigaChat-Pro", "GigaChat"],
+        "yandexgpt": ["yandexgpt", "yandexgpt-lite", "yandexgpt-32k"],
+    }
+
+    with st.container(border=True):
+        pc, mc = st.columns(2)
+        with pc:
+            _cur_provider = _llm_cfg["provider"]
+            _p_idx = _PROVIDER_KEYS.index(_cur_provider) if _cur_provider in _PROVIDER_KEYS else 0
+            _sel_label = st.selectbox(
+                "Провайдер",
+                options=_PROVIDER_LABELS,
+                index=_p_idx,
+                key="llm_provider_sel",
+            )
+            _sel_provider = _PROVIDER_KEYS[_PROVIDER_LABELS.index(_sel_label)]
+        with mc:
+            _opts = _MODEL_OPTS.get(_sel_provider, _MODEL_OPTS["gigachat"])
+            _cur_model = _llm_cfg["model"] if _llm_cfg["model"] in _opts else _opts[0]
+            _sel_model = st.selectbox(
+                "Модель",
+                options=_opts,
+                index=_opts.index(_cur_model),
+                key="llm_model_sel",
+            )
+
+        if _sel_provider != _llm_cfg["provider"] or _sel_model != _llm_cfg["model"]:
+            llm_judge_config.save({**_llm_cfg, "provider": _sel_provider, "model": _sel_model})
+            st.rerun()
+
+        st.caption(
+            f":material/timer: Таймаут: {_llm_cfg['timeout_sec']} сек · "
+            "Fallback при таймауте: ручная очередь"
         )
 
-    col_timeout, col_fallback = st.columns(2)
-    with col_timeout:
-        st.markdown("**Таймаут:** 5 сек")
-    with col_fallback:
-        st.markdown("**Fallback при таймауте:** ручная очередь")
-
-    st.caption(
-        "LLM-судья будет подключён в Gate 8. До этого borderline-кейсы "
-        "(0.75 ≤ score < 0.92) выводятся в Ленте с пометкой **«На проверку»**."
-    )
+    # ── Секция: credentials-индикатор + кнопка «Тест» ──
+    with st.container(border=True):
+        col_msg, col_btn = st.columns([4, 1], vertical_alignment="center")
+        with col_msg:
+            if _creds_set:
+                st.success(
+                    "GIGACHAT_CREDENTIALS заданы — готово к тесту",
+                    icon=":material/check_circle:",
+                )
+            else:
+                st.info(
+                    "Credentials не заданы. Добавьте секцию [gigachat] в "
+                    ".streamlit/secrets.toml (см. secrets.toml.example).",
+                    icon=":material/info:",
+                )
+        with col_btn:
+            if st.button(
+                ":material/rocket_launch: Тест", key="llm_test",
+                use_container_width=True
+            ):
+                if not _creds_set:
+                    st.toast("Credentials не заданы", icon=":material/warning:")
+                else:
+                    _ping = llm_check_connection()
+                    if _ping["ok"]:
+                        st.toast("OAuth-пинг успешен", icon=":material/check_circle:")
+                    else:
+                        st.toast(
+                            f"Ошибка: {_ping['error']}", icon=":material/error:"
+                        )
 
 # ── Блок 5: Telegram Bot API ─────────────────────────────────────────────────
 

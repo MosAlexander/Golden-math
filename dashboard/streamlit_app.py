@@ -35,6 +35,15 @@ try:
 except Exception:
     pass
 
+try:
+    if "gigachat" in st.secrets:
+        for _gc_key, _gc_val in st.secrets["gigachat"].items():
+            env_key = f"GIGACHAT_{_gc_key.upper()}"
+            if env_key not in os.environ:
+                os.environ[env_key] = str(_gc_val)
+except Exception:
+    pass
+
 # Все страницы относительно dashboard/streamlit_app.py
 pages = {
     "📊 Мониторинг": [

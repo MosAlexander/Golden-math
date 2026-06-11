@@ -6,6 +6,8 @@ import logging
 import re
 from pathlib import Path
 
+from src.storage import atomic_write_json
+
 logger = logging.getLogger(__name__)
 
 CHANNELS_PATH = Path("data/channels.json")
@@ -48,8 +50,7 @@ def save_config(config: dict, path: Path = CHANNELS_PATH) -> None:
         config: Словарь конфига.
         path: Путь к JSON-файлу.
     """
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8")
+    atomic_write_json(path, config)
 
 
 def validate_chat_id(chat_id: str) -> bool:
